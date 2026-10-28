@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
-  Settings2, Sparkles, Target, Wallet, X
+  Settings2, Sparkles, Target, X
 } from "lucide-react";
 
 const NAV = [
