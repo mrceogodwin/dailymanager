@@ -25,15 +25,19 @@ export async function POST(request) {
     if (body.kind === "task") {
       const title = typeof body.title === "string" ? body.title.trim() : "";
       const priority = ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : "medium";
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      const dueAt = body.due_at ? new Date(body.due_at) : null;
       if (!title || title.length > 500) return NextResponse.json({ error: "Task name is required and must be under 500 characters." }, { status: 400 });
+      if (description.length > 4000) return NextResponse.json({ error: "Task description must be under 4,000 characters." }, { status: 400 });
+      if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
       let projectId = body.project_id || null;
       if (projectId) {
         const project = await query("SELECT id FROM projects WHERE id = $1 AND workspace_id = $2", [projectId, workspaceId]);
         if (!project.rowCount) return NextResponse.json({ error: "Selected project was not found." }, { status: 400 });
       }
       const result = await query(
-        "INSERT INTO tasks (workspace_id, project_id, title, priority, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-        [workspaceId, projectId, title, priority, user.id]
+        "INSERT INTO tasks (workspace_id, project_id, title, description, priority, due_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+        [workspaceId, projectId, title, description, priority, dueAt ? dueAt.toISOString() : null, user.id]
       );
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
