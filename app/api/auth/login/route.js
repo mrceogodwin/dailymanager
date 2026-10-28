@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { query } from "../../../../lib/db";
 import { createSession } from "../../../../lib/session";
+import { checkAuthRateLimit } from "../../../../lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -13,6 +14,8 @@ export async function POST(request) {
   if (!email || !password) return NextResponse.json({ error: "Enter your email and password." }, { status: 400 });
 
   try {
+    const limit = await checkAuthRateLimit(request, "login", email);
+    if (!limit.allowed) return NextResponse.json({ error: "Too many login attempts. Please wait before trying again." }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
     const result = await query("SELECT id, name, email, password_hash FROM app_users WHERE email = $1 LIMIT 1", [email]);
     const user = result.rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
