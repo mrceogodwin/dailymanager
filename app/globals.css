@@ -51,3 +51,5 @@
 /* Searchable notes list */
 .note-row{align-items:flex-start}
 .note-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}
+
+.note-meta{display:block;margin-top:7px;color:var(--muted);font-size:10px;letter-spacing:.02em}
