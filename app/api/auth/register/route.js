@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { pool, query } from "../../../../lib/db";
 import { createSession } from "../../../../lib/session";
+import { checkAuthRateLimit } from "../../../../lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,14 @@ export async function POST(request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   if (password.length < 10 || password.length > 128) return NextResponse.json({ error: "Password must be between 10 and 128 characters." }, { status: 400 });
   if (!process.env.DATABASE_URL) return NextResponse.json({ error: "Database is not configured yet. Add DATABASE_URL in Vercel project settings." }, { status: 503 });
+
+  try {
+    const limit = await checkAuthRateLimit(request, "register", email);
+    if (!limit.allowed) return NextResponse.json({ error: "Too many signup attempts. Please wait before trying again." }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
+  } catch (error) {
+    console.error("DailyManager signup rate limit failed", error);
+    return NextResponse.json({ error: "Registration is temporarily unavailable. Please try again." }, { status: error.status || 500 });
+  }
 
   const client = await pool.connect();
   try {
