@@ -45,7 +45,7 @@ export default function Home() {
   const [active, setActive] = useState("Overview");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState("");
-  const [draft, setDraft] = useState({ title: "", body: "", project_id: "", priority: "medium" });
+  const [draft, setDraft] = useState({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium" });
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -93,11 +93,11 @@ export default function Home() {
     const kind = modal === "project" ? "project" : modal === "note" ? "note" : "task";
     const payload = kind === "project" ? { kind, name: draft.title, description: draft.body }
       : kind === "note" ? { kind, title: draft.title, body: draft.body }
-      : { kind, title: draft.title, project_id: draft.project_id || null, priority: draft.priority };
+      : { kind, title: draft.title, description: draft.description, due_at: draft.due_at || null, project_id: draft.project_id || null, priority: draft.priority };
     setBusy(true);
     try {
       await api("/api/workspace", { method: "POST", body: JSON.stringify(payload) });
-      setModal(""); setDraft({ title: "", body: "", project_id: "", priority: "medium" });
+      setModal(""); setDraft({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium" });
       await refresh(); setNotice(kind === "note" ? "Note saved." : kind === "project" ? "Project created." : "Task added.");
     } catch (error) { setNotice(error.message); }
     finally { setBusy(false); }
@@ -149,7 +149,7 @@ export default function Home() {
     </main>
   );
 
-  const create = (kind) => { setDraft({ title: "", body: "", project_id: "", priority: "medium" }); setModal(kind); };
+  const create = (kind) => { setDraft({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium" }); setModal(kind); };
   const heading = active === "Overview" ? "Good to see you, " + user.name.split(" ")[0] : active;
   const visibleTasks = filteredTasks;
   return (
@@ -182,7 +182,7 @@ export default function Home() {
           {active==="Settings" && <section className="panel"><div className="panel-heading"><div><h2>Workspace settings</h2><p>Your account and plan information.</p></div></div><p><b>Workspace:</b> {workspace?.name}</p><p><b>Account:</b> {user.email}</p><p><b>Plan:</b> {workspace?.plan}</p><p><b>Trial ends:</b> {workspace?.trial_ends_at?new Date(workspace.trial_ends_at).toLocaleDateString():"Not set"}</p><p>Billing is not connected. No payment will be taken in this version.</p></section>}
         </div>
       </section>
-      {modal && <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setModal("");}} style={{position:"fixed",inset:0,zIndex:100,display:"grid",placeItems:"center",padding:18,background:"#000b",backdropFilter:"blur(7px)"}}><form onSubmit={saveItem} style={{width:"min(100%,450px)",padding:24,border:"1px solid #373c3f",borderRadius:18,background:"#17191b",display:"grid",gap:14,boxShadow:"0 30px 90px #0009"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{margin:0}}>{modal==="project"?"Create a project":modal==="note"?"Capture a note":"Add a task"}</h2><button type="button" onClick={()=>setModal("")} aria-label="Close" style={{border:0,background:"transparent",color:"inherit",cursor:"pointer"}}><X size={18}/></button></div><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>{modal==="project"?"Project name":modal==="note"?"Note title":"Task name"}<input style={inputStyle} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})} required maxLength={modal==="task"?500:modal==="note"?200:160} autoFocus placeholder={modal==="task"?"What needs doing?":"Give it a clear name"}/></label>{modal!=="task"&&<label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>{modal==="note"?"Note":"Description (optional)"}<textarea style={{...inputStyle,minHeight:100,resize:"vertical"}} value={draft.body} onChange={e=>setDraft({...draft,body:e.target.value})} maxLength={modal==="note"?20000:2000}/></label>}{modal==="task"&&<><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>Project<select style={inputStyle} value={draft.project_id} onChange={e=>setDraft({...draft,project_id:e.target.value})}><option value="">Personal / no project</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>Priority<select style={inputStyle} value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></>}<button style={buttonStyle} disabled={busy}>{busy?"Saving…":"Save"}</button></form></div>}
+      {modal && <div role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setModal("");}} style={{position:"fixed",inset:0,zIndex:100,display:"grid",placeItems:"center",padding:18,background:"#000b",backdropFilter:"blur(7px)"}}><form onSubmit={saveItem} style={{width:"min(100%,450px)",padding:24,border:"1px solid #373c3f",borderRadius:18,background:"#17191b",display:"grid",gap:14,boxShadow:"0 30px 90px #0009"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{margin:0}}>{modal==="project"?"Create a project":modal==="note"?"Capture a note":"Add a task"}</h2><button type="button" onClick={()=>setModal("")} aria-label="Close" style={{border:0,background:"transparent",color:"inherit",cursor:"pointer"}}><X size={18}/></button></div><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>{modal==="project"?"Project name":modal==="note"?"Note title":"Task name"}<input style={inputStyle} value={draft.title} onChange={e=>setDraft({...draft,title:e.target.value})} required maxLength={modal==="task"?500:modal==="note"?200:160} autoFocus placeholder={modal==="task"?"What needs doing?":"Give it a clear name"}/></label>{modal!=="task"&&<label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>{modal==="note"?"Note":"Description (optional)"}<textarea style={{...inputStyle,minHeight:100,resize:"vertical"}} value={draft.body} onChange={e=>setDraft({...draft,body:e.target.value})} maxLength={modal==="note"?20000:2000}/></label>}{modal==="task"&&<><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>Description (optional)<textarea style={{...inputStyle,minHeight:76,resize:"vertical"}} value={draft.description} onChange={e=>setDraft({...draft,description:e.target.value})} maxLength={4000} placeholder="Add helpful context"/></label><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>Due date (optional)<input style={inputStyle} type="date" value={draft.due_at} onChange={e=>setDraft({...draft,due_at:e.target.value})}/></label><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>Project<select style={inputStyle} value={draft.project_id} onChange={e=>setDraft({...draft,project_id:e.target.value})}><option value="">Personal / no project</option>{projects.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label style={{display:"grid",gap:6,fontSize:12,fontWeight:750}}>Priority<select style={inputStyle} value={draft.priority} onChange={e=>setDraft({...draft,priority:e.target.value})}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></>}<button style={buttonStyle} disabled={busy}>{busy?"Saving…":"Save"}</button></form></div>}
       {notice && <div role="status" style={{position:"fixed",right:20,bottom:20,zIndex:120,background:"#25282a",border:"1px solid #464b4e",borderRadius:11,padding:"12px 16px",color:"#f4f2ef",boxShadow:"0 15px 35px #0008",maxWidth:"90vw"}}>{notice}</div>}
     </main>
   );
