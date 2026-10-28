@@ -46,3 +46,8 @@
 .insight-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px}
 .insight-breakdown b{font-size:18px}
 @media(max-width:620px){.planner-summary{grid-template-columns:1fr}.planner-summary article{padding:12px 14px}.insight-breakdown{grid-template-columns:1fr}.insight-progress-copy{align-items:flex-start;flex-direction:column}.task-row .task-status{white-space:nowrap}}
+
+
+/* Searchable notes list */
+.note-row{align-items:flex-start}
+.note-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}
