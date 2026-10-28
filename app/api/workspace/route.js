@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { query } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { query } from "../../../lib/db";
+import { getSessionUser } from "../../../lib/session";
 
 export const runtime = "nodejs";
 
