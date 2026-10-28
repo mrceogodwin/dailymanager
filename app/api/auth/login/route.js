@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { query } from "@/lib/db";
-import { createSession } from "@/lib/session";
+import { query } from "../../../../lib/db";
+import { createSession } from "../../../../lib/session";
 
 export const runtime = "nodejs";
 
