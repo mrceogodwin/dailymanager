@@ -50,6 +50,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
   const [annualPreview, setAnnualPreview] = useState(false);
+  const [taskFilter, setTaskFilter] = useState("all");
 
   const refresh = useCallback(async () => {
     const data = await api("/api/auth/me");
