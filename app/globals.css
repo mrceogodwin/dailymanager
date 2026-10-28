@@ -32,3 +32,17 @@
 
 .task-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 16px;padding-bottom:14px;border-bottom:1px solid #30313a}.task-toolbar button{border:1px solid #343540;border-radius:9px;padding:8px 12px;background:#17171f;color:#aaa8b8;cursor:pointer;font-size:11px}.task-toolbar button.selected{background:#30263f;border-color:#8068a8;color:#e0d4ff}.task-toolbar button:hover{border-color:#8068a8;color:#fff}
 @media(max-width:520px){.task-toolbar{gap:5px}.task-toolbar button{padding:8px 9px}}
+
+
+/* Planner and progress insights */
+.planner-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:8px 0 18px}
+.planner-summary article,.insight-breakdown>div{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:var(--panel2)}
+.planner-summary article span,.insight-breakdown span{font-size:12px;color:var(--muted)}
+.planner-summary article b{font-size:23px;font-weight:800}
+.task-status.planner-overdue{color:#ff9b9b;background:#49252b;border-color:#6d343c}
+.task-status.planner-today{color:#ffcc8d;background:#49351f;border-color:#6c4a2a}
+.insight-progress-copy{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 10px;font-size:13px}
+.insight-progress-copy span{color:var(--muted)}
+.insight-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px}
+.insight-breakdown b{font-size:18px}
+@media(max-width:620px){.planner-summary{grid-template-columns:1fr}.planner-summary article{padding:12px 14px}.insight-breakdown{grid-template-columns:1fr}.insight-progress-copy{align-items:flex-start;flex-direction:column}.task-row .task-status{white-space:nowrap}}
