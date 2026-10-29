@@ -526,16 +526,17 @@ export default function Home() {
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,280px),1fr))",gap:14}}>
               {filteredProjects.map(project=>{
                 const linked=tasks.filter(t=>String(t.project_id||"")===String(project.id));
-                const done=linked.filter(t=>t.status==="done").length;
+                const countedLinked=linked.filter(t=>t.status!=="cancelled");
+                const done=countedLinked.filter(t=>t.status==="done").length;
                 const open=linked.filter(t=>!["done","cancelled"].includes(t.status));
                 const overdue= open.filter(t=>t.due_at&&parseDueDate(t.due_at)<todayStart).length;
-                const progress=linked.length?Math.round(done/linked.length*100):0;
+                const progress=countedLinked.length?Math.round(done/countedLinked.length*100):0;
                 const health=overdue>0?"Needs attention":linked.length&&progress===100?"Completed":linked.length?"On track":"Not started";
                 const healthColor=overdue>0?"#f0a0a0":linked.length&&progress===100?"#8ed9ab":linked.length?"#e9c27b":"#aab2b6";
                 return <article key={project.id} style={{border:"1px solid #303638",borderRadius:15,padding:17,background:"#121516",display:"grid",gap:13,alignContent:"start"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:10}}><span className="stat-icon orange"><FolderKanban size={17}/></span><span className="task-status" style={{color:healthColor,borderColor:healthColor+"55"}}>{health}</span></div>
                   <div><h3 style={{fontSize:16,margin:"0 0 6px",overflowWrap:"anywhere"}}>{project.name}</h3><p style={{fontSize:12,color:"#a9b0b2",lineHeight:1.6,margin:0}}>{project.description||"No project description yet."}</p></div>
-                  <div className="project-progress-label"><span>{done} / {linked.length} tasks complete</span><b>{progress}%</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div>
+                  <div className="project-progress-label"><span>{done} / {countedLinked.length} tasks complete</span><b>{progress}%</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}}>{[{label:"Open",value:open.length},{label:"Overdue",value:overdue},{label:"Cancelled",value:linked.filter(t=>t.status==="cancelled").length}].map(item=><div key={item.label} style={{background:"#1a1e20",borderRadius:9,padding:"10px 8px"}}><span style={{display:"block",fontSize:10,color:"#9da5a8",marginBottom:5}}>{item.label}</span><b style={{fontSize:17}}>{item.value}</b></div>)}</div>
                   <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("My tasks");setTaskFilter("all");}}>View tasks <ArrowRight size={14}/></button><button className="project-view-tasks" onClick={()=>{setSelectedProjectId(project.id);setActive("Project details");}}>Details <ArrowRight size={13}/></button><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("Projects");}}>Edit project <Pencil size={13}/></button></div>
                 </article>;
