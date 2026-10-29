@@ -24,6 +24,9 @@ export async function POST(request) {
     } catch {
       return NextResponse.json({ error: "Please submit valid JSON." }, { status: 400 });
     }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
+    }
     const workspaceId = await getWorkspace(user.id);
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
 
