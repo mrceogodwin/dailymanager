@@ -92,6 +92,26 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (body.kind === "note_update") {
+      if (!body.id) return NextResponse.json({ error: "Note ID is required." }, { status: 400 });
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      const noteBody = typeof body.body === "string" ? body.body : "";
+      if (!title || title.length > 200 || noteBody.length > 20000) return NextResponse.json({ error: "Note title or body is invalid." }, { status: 400 });
+      const result = await query(
+        "UPDATE workspace_notes SET title = $1, body = $2, updated_at = NOW() WHERE id = $3 AND workspace_id = $4 RETURNING id",
+        [title, noteBody, body.id, workspaceId]
+      );
+      if (!result.rowCount) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body.kind === "note_delete") {
+      if (!body.id) return NextResponse.json({ error: "Note ID is required." }, { status: 400 });
+      const result = await query("DELETE FROM workspace_notes WHERE id = $1 AND workspace_id = $2 RETURNING id", [body.id, workspaceId]);
+      if (!result.rowCount) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.kind === "project") {
       const name = typeof body.name === "string" ? body.name.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
