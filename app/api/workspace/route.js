@@ -16,7 +16,19 @@ async function ensureActivityTable() {
     summary TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
-  await query("ALTER TABLE workspace_activity ALTER COLUMN workspace_id TYPE TEXT USING workspace_id::text");
+  await query(`DO $
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'workspace_activity'
+          AND column_name = 'workspace_id'
+          AND data_type <> 'text'
+      ) THEN
+        ALTER TABLE workspace_activity ALTER COLUMN workspace_id TYPE TEXT USING workspace_id::text;
+      END IF;
+    END $`);
+  await query("CREATE INDEX IF NOT EXISTS workspace_activity_workspace_created_idx ON workspace_activity (workspace_id, created_at DESC, id DESC)");
 }
 async function recordActivity({ workspaceId, user, action, entityType, entityId, summary }) {
   try {
@@ -126,8 +138,9 @@ export async function POST(request) {
 
     if (body.kind === "task_delete") {
       if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
-      const result = await query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING id", [body.id, workspaceId]);
+      const result = await query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "deleted", entityType: "task", entityId: body.id, summary: `Deleted task “${result.rows[0].title}”.` });
       return NextResponse.json({ ok: true });
     }
 
