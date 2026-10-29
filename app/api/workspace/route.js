@@ -112,6 +112,25 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
+    if (body.kind === "project_update") {
+      if (!body.id) return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      if (!name || name.length > 160 || description.length > 2000) return NextResponse.json({ error: "Project name or description is invalid." }, { status: 400 });
+      const result = await query("UPDATE projects SET name = $1, description = $2 WHERE id = $3 AND workspace_id = $4 RETURNING id", [name, description, body.id, workspaceId]);
+      if (!result.rowCount) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body.kind === "project_delete") {
+      if (!body.id) return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
+      const linkedTasks = await query("SELECT id FROM tasks WHERE project_id = $1 AND workspace_id = $2 LIMIT 1", [body.id, workspaceId]);
+      if (linkedTasks.rowCount) return NextResponse.json({ error: "Move or unassign this project’s tasks before deleting the project." }, { status: 409 });
+      const result = await query("DELETE FROM projects WHERE id = $1 AND workspace_id = $2 RETURNING id", [body.id, workspaceId]);
+      if (!result.rowCount) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.kind === "project") {
       const name = typeof body.name === "string" ? body.name.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
