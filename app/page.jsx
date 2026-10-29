@@ -583,13 +583,13 @@ export default function Home() {
               const selectedKey=dayKey(selectedCalendarDate);
               const scheduled=tasks.filter(t=>t.due_at&&dayKey(new Date(t.due_at))===selectedKey);
               const openScheduled=scheduled.filter(t=>!["done","cancelled"].includes(t.status));
-              return <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.55fr) minmax(230px,0.85fr)",gap:20,alignItems:"start"}}>
+              return <div className="calendar-layout">
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:16}}>
                     <div><h3 style={{margin:0,fontSize:18}}>{calendarMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</h3><span style={{fontSize:12,color:"#9da5a8"}}>{tasks.filter(t=>t.due_at&&new Date(t.due_at).getMonth()===month&&new Date(t.due_at).getFullYear()===year).length} scheduled tasks this month</span></div>
                     <div style={{display:"flex",gap:7}}><button className="icon-button" aria-label="Previous month" onClick={()=>setCalendarMonth(new Date(year,month-1,1))}><ChevronDown size={15} style={{transform:"rotate(90deg)"}}/></button><button className="period-select" onClick={()=>{const now=new Date();setCalendarMonth(new Date(now.getFullYear(),now.getMonth(),1));setSelectedCalendarDate(new Date(now.getFullYear(),now.getMonth(),now.getDate()));}}>Today</button><button className="icon-button" aria-label="Next month" onClick={()=>setCalendarMonth(new Date(year,month+1,1))}><ChevronDown size={15} style={{transform:"rotate(-90deg)"}}/></button></div>
                   </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:5}}>
+                  <div className="calendar-grid">
                     {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(day=><div key={day} style={{textAlign:"center",fontSize:11,color:"#9da5a8",padding:"7px 0"}}>{day}</div>)}
                     {cells.map((date,index)=>{
                       const key=dayKey(date);
@@ -597,7 +597,7 @@ export default function Home() {
                       const selected=key===selectedKey;
                       const today=key===dayKey(new Date());
                       const inMonth=date.getMonth()===month;
-                      return <button key={key} onClick={()=>setSelectedCalendarDate(new Date(date.getFullYear(),date.getMonth(),date.getDate()))} aria-pressed={selected} aria-label={date.toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"})+", "+dayTasks.length+" tasks"} style={{minWidth:0,minHeight:76,padding:"7px 4px",borderRadius:10,border:selected?"1px solid #f39a45":"1px solid "+(today?"#8d653f":"#2b3032"),background:selected?"#35271b":"#151819",color:inMonth?"#f2f3f3":"#687174",textAlign:"left",display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"}}>
+                      return <button key={key} onClick={()=>setSelectedCalendarDate(new Date(date.getFullYear(),date.getMonth(),date.getDate()))} aria-pressed={selected} aria-label={date.toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"})+", "+dayTasks.length+" tasks"} className="calendar-day" style={{minWidth:0,minHeight:76,padding:"7px 4px",borderRadius:10,border:selected?"1px solid #f39a45":"1px solid "+(today?"#8d653f":"#2b3032"),background:selected?"#35271b":"#151819",color:inMonth?"#f2f3f3":"#687174",textAlign:"left",display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"}}>
                         <span style={{fontSize:12,fontWeight:selected||today?700:500}}>{date.getDate()}</span>
                         {dayTasks.length>0?<span style={{display:"flex",gap:3,alignItems:"center",justifyContent:"center",maxWidth:"100%"}}>{dayTasks.slice(0,3).map((t,i)=><span key={t.id} style={{width:5,height:5,borderRadius:99,background:t.status==="done"?"#80d5a1":t.priority==="urgent"||t.priority==="high"?"#f08c76":"#f2ad67"}}/>)}<span style={{fontSize:9,color:inMonth?"#c6cdcf":"#687174"}}>{dayTasks.length}</span></span>:<span style={{height:12}}/>}
                       </button>;
