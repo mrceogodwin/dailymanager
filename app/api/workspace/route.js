@@ -135,6 +135,8 @@ export async function POST(request) {
       if (!priority) return NextResponse.json({ error: "Choose a valid task priority." }, { status: 400 });
       if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
       const assignedTo = await validateTaskAssignee(body.assigned_to, workspaceId);
+      const assigneeResult = assignedTo ? await query("SELECT name, email FROM app_users WHERE id::text = $1 LIMIT 1", [assignedTo]) : null;
+      const assigneeLabel = assigneeResult?.rows[0]?.name || assigneeResult?.rows[0]?.email || null;
       const projectId = body.project_id || null;
       if (projectId) {
         const project = await query("SELECT id FROM projects WHERE id = $1 AND workspace_id = $2", [projectId, workspaceId]);
@@ -145,7 +147,7 @@ export async function POST(request) {
         [title, description, dueAt ? dueAt.toISOString() : null, projectId, priority, assignedTo, body.id, workspaceId]
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
-      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignedTo ? " and assigned it to a team member" : " and cleared its assignee"}.` });
+      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignedTo ? ` and assigned it to ${assigneeLabel || "a team member"}` : " and cleared its assignee"}.` });
       return NextResponse.json({ ok: true });
     }
 
