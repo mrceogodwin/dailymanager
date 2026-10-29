@@ -131,6 +131,7 @@ export default function Home() {
   const [notice, setNotice] = useState("");
   const [commentTask, setCommentTask] = useState(null);
   const [taskComments, setTaskComments] = useState([]);
+  const [taskHistory, setTaskHistory] = useState([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -446,11 +447,13 @@ export default function Home() {
   async function openTaskComments(task) {
     setCommentTask(task);
     setTaskComments([]);
+    setTaskHistory([]);
     setCommentDraft("");
     setCommentsLoading(true);
     try {
       const data = await api(`/api/workspace?task_id=${encodeURIComponent(task.id)}`);
       setTaskComments(data.comments || []);
+      setTaskHistory(data.history || []);
     } catch (error) {
       setNotice(error.message || "Could not load task discussion.");
     } finally {
@@ -960,7 +963,7 @@ export default function Home() {
       {commentTask && <div role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setCommentTask(null);}} style={{position:"fixed",inset:0,zIndex:110,display:"grid",placeItems:"center",padding:18,background:"#000b",backdropFilter:"blur(7px)"}}>
         <section role="dialog" aria-modal="true" aria-labelledby="task-discussion-title" style={{width:"min(100%,560px)",maxHeight:"calc(100dvh - 36px)",display:"grid",gridTemplateRows:"auto minmax(120px,1fr) auto",gap:14,padding:22,border:"1px solid #373c3f",borderRadius:18,background:"var(--panel,#17191b)",color:"var(--text,#f4f2ef)",boxShadow:"0 30px 90px #0009"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:12}}><div><h2 id="task-discussion-title" style={{margin:0,fontSize:18}}>Task discussion</h2><p style={{margin:"6px 0 0",color:"var(--muted,#a9b0b2)"}}>{commentTask.title}</p></div><button type="button" onClick={()=>setCommentTask(null)} aria-label="Close discussion" style={{border:0,background:"transparent",color:"inherit",cursor:"pointer"}}><X size={18}/></button></div>
-          <div style={{overflowY:"auto",display:"grid",alignContent:"start",gap:10,minHeight:120}}>{commentsLoading&&<p className="empty-state">Loading discussion…</p>}{!commentsLoading&&!taskComments.length&&<p className="empty-state">No comments yet. Start the conversation.</p>}{taskComments.map(comment=><article key={comment.id} style={{padding:12,border:"1px solid var(--line,#303638)",borderRadius:12,background:"var(--surface-muted,rgba(127,127,127,.08))"}}><div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><b>{comment.author_name||comment.author_email||"Workspace member"}</b><span style={{fontSize:11,color:"var(--muted,#a9b0b2)"}}>{new Date(comment.created_at).toLocaleString()}</span></div><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",margin:"8px 0 0",lineHeight:1.55}}>{comment.body}</p></article>)}</div>
+          <div style={{overflowY:"auto",display:"grid",alignContent:"start",gap:10,minHeight:120}}>{commentsLoading&&<p className="empty-state">Loading discussion…</p>}{!commentsLoading&&!taskComments.length&&<p className="empty-state">No comments yet. Start the conversation.</p>}{taskComments.map(comment=><article key={comment.id} style={{padding:12,border:"1px solid var(--line,#303638)",borderRadius:12,background:"var(--surface-muted,rgba(127,127,127,.08))"}}><div style={{display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}><b>{comment.author_name||comment.author_email||"Workspace member"}</b><span style={{fontSize:11,color:"var(--muted,#a9b0b2)"}}>{new Date(comment.created_at).toLocaleString()}</span></div><p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere",margin:"8px 0 0",lineHeight:1.55}}>{comment.body}</p></article>)}<div style={{marginTop:8}}><h3 style={{fontSize:13,margin:"8px 0",letterSpacing:".02em"}}>Task history</h3>{!taskHistory.length&&<p className="empty-state">No recorded task changes yet.</p>}{taskHistory.map(item=><div key={item.id} style={{display:"grid",gridTemplateColumns:"8px 1fr",gap:10,padding:"8px 0",borderBottom:"1px solid var(--line,#303638)"}}><span style={{width:7,height:7,borderRadius:99,background:"var(--accent,#ef6658)",marginTop:5}}/><div><p style={{margin:0,fontSize:12,lineHeight:1.45}}><b>{item.actor_name||"Workspace member"}</b> {item.summary}</p><span style={{fontSize:10,color:"var(--muted,#a9b0b2)"}}>{new Date(item.created_at).toLocaleString()}</span></div></div>)}</div></div>
           <form onSubmit={submitTaskComment} style={{display:"grid",gap:9}}><textarea aria-label="Write a comment" placeholder="Write a comment…" value={commentDraft} onChange={event=>setCommentDraft(event.target.value)} maxLength={5000} rows={3} style={{...inputStyle,width:"100%",resize:"vertical",fontSize:16}}/><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}><span style={{fontSize:11,color:"var(--muted,#a9b0b2)"}}>{commentDraft.length}/5000</span><button type="submit" style={buttonStyle} disabled={busy||!commentDraft.trim()}>{busy?"Posting…":"Post comment"}</button></div></form>
         </section>
       </div>}
