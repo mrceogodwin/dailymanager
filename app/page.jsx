@@ -296,6 +296,30 @@ export default function Home() {
     }
   }
 
+  async function assignTaskToProject(task, project) {
+    setBusy(true);
+    try {
+      await api("/api/workspace", {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "task_update",
+          id: task.id,
+          title: task.title || "",
+          description: task.description || "",
+          due_at: task.due_at || null,
+          project_id: String(project.id),
+          priority: task.priority || "medium",
+        }),
+      });
+      await refresh();
+      setNotice(`“${task.title}” added to ${project.name}.`);
+    } catch (error) {
+      setNotice(error.message || "Could not assign this task to the project.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function editTask(task) {
     setEditingTaskId(task.id);
     setDraft({
@@ -547,7 +571,7 @@ export default function Home() {
                   <div><h3 style={{fontSize:16,margin:"0 0 6px",overflowWrap:"anywhere"}}>{project.name}</h3><p style={{fontSize:12,color:"#a9b0b2",lineHeight:1.6,margin:0}}>{project.description||"No project description yet."}</p></div>
                   <div className="project-progress-label"><span>{done} / {countedLinked.length} tasks complete</span><b>{progress}%</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}}>{[{label:"Open",value:open.length},{label:"Overdue",value:overdue},{label:"Cancelled",value:linked.filter(t=>t.status==="cancelled").length}].map(item=><div key={item.label} style={{background:"#1a1e20",borderRadius:9,padding:"10px 8px"}}><span style={{display:"block",fontSize:10,color:"#9da5a8",marginBottom:5}}>{item.label}</span><b style={{fontSize:17}}>{item.value}</b></div>)}</div>
-                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("My tasks");setTaskFilter("all");}}>View tasks <ArrowRight size={14}/></button><button className="project-view-tasks" onClick={()=>{setSelectedProjectId(project.id);setActive("Project details");}}>Details <ArrowRight size={13}/></button><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("Projects");}}>Edit project <Pencil size={13}/></button></div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("My tasks");setTaskFilter("all");}}>View tasks <ArrowRight size={14}/></button><button className="project-view-tasks" onClick={()=>{setSelectedProjectId(project.id);setActive("Project details");}}>Details <ArrowRight size={13}/></button><button className="project-view-tasks" onClick={()=>editProject(project)}>Edit project <Pencil size={13}/></button></div>
                 </article>;
               })}
             </div>
@@ -575,6 +599,16 @@ export default function Home() {
                 </div>
                 <div style={{marginTop:17}}><div className="project-progress-label"><span>Delivery progress</span><b>{done} of {countedRelated.length} complete</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div></div>
               </section>
+              {tasks.some(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)) && <section className="panel">
+                <div className="panel-heading"><div><h2>Unassigned tasks</h2><p>Add existing personal tasks to this project without recreating them.</p></div><span className="task-status">{tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).length} available</span></div>
+                <div style={{display:"grid",gap:8}}>
+                  {tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).slice(0,12).map(task=><div key={task.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",padding:"12px 0",borderTop:"1px solid #2b3032"}}>
+                    <div style={{display:"grid",gap:4,minWidth:0,flex:"1 1 200px"}}><b style={{fontSize:13,overflowWrap:"anywhere"}}>{task.title}</b><span style={{fontSize:11,color:"#9da5a8"}}>{task.priority||"medium"} priority · {task.due_at?"Due "+parseDueDate(task.due_at).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"No due date"}</span></div>
+                    <button type="button" className="project-view-tasks" disabled={busy} onClick={()=>assignTaskToProject(task,project)}><Plus size={14}/> Add to project</button>
+                  </div>)}
+                </div>
+                {tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).length>12&&<p style={{fontSize:11,color:"#9da5a8"}}>Showing the first 12 unassigned open tasks.</p>}
+              </section>}
               <section className="panel"><div className="panel-heading"><div><h2>Project tasks</h2><p>Update task status or open a task to edit its details.</p></div><button className="period-select" onClick={()=>{setSearch(project.name);setActive("My tasks");setTaskFilter("all");}}>Open task list <ArrowRight size={14}/></button></div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,220px),1fr))",gap:12}}>
                   {statusGroups.map(group=>{const grouped=related.filter(task=>task.status===group.key);return <div key={group.key} style={{border:"1px solid #2d3234",borderRadius:12,padding:12,background:"#121516",minWidth:0}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9}}><b style={{fontSize:12}}>{group.label}</b><span className="task-status">{grouped.length}</span></div>
