@@ -186,3 +186,14 @@
 .feature-step>span{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:#29243b;color:#c3b3ff;font-size:11px;font-weight:750}
 .feature-step>b{font-size:13px}
 .feature-step>p{margin:0;color:#9da5a8;font-size:12px;line-height:1.65}
+
+
+/* Reusable task template gallery */
+.feature-template-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:13px}
+.feature-template-card{display:grid;justify-items:start;align-content:start;gap:10px;min-height:190px;padding:17px;border:1px solid #303638;border-radius:14px;background:linear-gradient(150deg,#1a1d1e,#111314);color:#f1f3f3;text-align:left;cursor:pointer;transition:border-color .16s,transform .16s}
+.feature-template-card:hover{border-color:#ff9b73;transform:translateY(-2px)}
+.feature-template-card:focus-visible{outline:2px solid #ffad8a;outline-offset:3px}
+.feature-template-icon{display:grid;place-items:center;width:38px;height:38px;border:1px solid #5b4237;border-radius:11px;background:#30211b;color:#ffb18c}
+.feature-template-card>b{font-size:14px}
+.feature-template-card>p{margin:0;color:#aab0b1;font-size:12px;line-height:1.65}
+.feature-template-action{display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:8px;color:#ffb18c;font-size:12px;font-weight:750}
