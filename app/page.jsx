@@ -136,6 +136,12 @@ export default function Home() {
   const [bulkTaskLines, setBulkTaskLines] = useState("");
   const [bulkTaskPriority, setBulkTaskPriority] = useState("medium");
   const [bulkTaskProject, setBulkTaskProject] = useState("");
+  const [recurringTitle, setRecurringTitle] = useState("");
+  const [recurringStart, setRecurringStart] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; });
+  const [recurringFrequency, setRecurringFrequency] = useState("weekly");
+  const [recurringCount, setRecurringCount] = useState("4");
+  const [recurringPriority, setRecurringPriority] = useState("medium");
+  const [recurringProject, setRecurringProject] = useState("");
 
   const refresh = useCallback(async () => {
     const data = await api("/api/auth/me");
@@ -238,6 +244,31 @@ export default function Home() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function createRecurringTasks(event) {
+    event.preventDefault();
+    const title = recurringTitle.trim();
+    const count = Number(recurringCount);
+    if (!title) { setNotice("Enter a task title."); return; }
+    if (!recurringStart || Number.isNaN(new Date(`${recurringStart}T12:00:00`).getTime())) { setNotice("Choose a valid start date."); return; }
+    if (!Number.isInteger(count) || count < 2 || count > 12) { setNotice("Choose between 2 and 12 occurrences."); return; }
+    const dates = Array.from({length:count},(_,index)=>{
+      const date = new Date(`${recurringStart}T12:00:00`);
+      if (recurringFrequency === "daily") date.setDate(date.getDate()+index);
+      else if (recurringFrequency === "weekly") date.setDate(date.getDate()+index*7);
+      else date.setMonth(date.getMonth()+index);
+      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+    });
+    setBusy(true);
+    try {
+      const results = await Promise.allSettled(dates.map((due_at,index)=>api("/api/workspace",{method:"POST",body:JSON.stringify({kind:"task",title,description:`Scheduled occurrence ${index+1} of ${count} (${recurringFrequency}).`,due_at,project_id:recurringProject||null,priority:recurringPriority})})));
+      const created=results.filter(result=>result.status==="fulfilled").length;
+      await refresh();
+      setNotice(created===count?`${count} scheduled tasks created.`:`${created} of ${count} scheduled tasks created. Please retry the missing occurrences.`);
+      if(created===count)setRecurringTitle("");
+    } catch(error) { setNotice(error.message||"Could not create this schedule."); }
+    finally { setBusy(false); }
   }
 
   async function createBulkTasks(event) {
@@ -516,7 +547,15 @@ export default function Home() {
           <div className="welcome-row"><div><div className="eyebrow"><span className="eyebrow-dot"/> YOUR WORKSPACE</div><h1>{heading}<span className="wave">✳</span></h1><p className="subtitle">{active==="Overview"?"A little progress each day adds up to big results.":"Your DailyManager workspace, all in one place."}</p></div><button className="primary-button" onClick={()=>create(active==="Projects"?"project":active==="Notes"?"note":"task")}><Plus size={17}/> {active==="Projects"?"New project":active==="Notes"?"New note":"New task"}</button></div>
           {selectedFeature && active===selectedFeature.name && <section className="panel feature-detail-screen">
             <div className="panel-heading"><div><button type="button" className="project-view-tasks" onClick={()=>setActive(selectedFeature.parent || "Overview")}><ArrowRight size={14} style={{transform:"rotate(180deg)"}}/> Back to {selectedFeature.parent || "workspace"}</button><h2 style={{marginTop:14}}>{selectedFeature.name}</h2><p>{selectedFeature.detail}</p></div><span className="task-status">{selectedFeature.status}</span></div>
-            {selectedFeature.name === "Bulk task creator" ? <>
+            {selectedFeature.name === "Recurring task scheduler" ? <>
+              <div className="feature-detail-card"><div className="feature-detail-icon"><CalendarDays size={22}/></div><div><h3>Schedule repeated tasks</h3><p>Create dated task occurrences in your workspace. Each occurrence is a normal editable task, so you can manage it independently.</p></div></div>
+              <form onSubmit={createRecurringTasks} className="bulk-task-form">
+                <label>Task title<input value={recurringTitle} onChange={(event)=>setRecurringTitle(event.target.value)} maxLength={500} placeholder="e.g. Send weekly performance report" required /></label>
+                <div className="bulk-task-options"><label>First due date<input type="date" value={recurringStart} onChange={(event)=>setRecurringStart(event.target.value)} required /></label><label>Repeat<select value={recurringFrequency} onChange={(event)=>setRecurringFrequency(event.target.value)}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><label>Occurrences<select value={recurringCount} onChange={(event)=>setRecurringCount(event.target.value)}><option value="2">2 times</option><option value="3">3 times</option><option value="4">4 times</option><option value="6">6 times</option><option value="8">8 times</option><option value="12">12 times</option></select></label><label>Priority<select value={recurringPriority} onChange={(event)=>setRecurringPriority(event.target.value)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div>
+                <label>Project<select value={recurringProject} onChange={(event)=>setRecurringProject(event.target.value)}><option value="">Personal / no project</option>{projects.map((project)=><option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+                <div className="bulk-task-footer"><span>{recurringCount} dated task occurrences will be created</span><button type="submit" disabled={busy || !recurringTitle.trim()}>{busy ? "Scheduling…" : "Create schedule"}</button></div>
+              </form>
+            </> : selectedFeature.name === "Bulk task creator" ? <>
               <div className="feature-detail-card"><div className="feature-detail-icon"><ClipboardList size={22}/></div><div><h3>Create tasks in one go</h3><p>Enter one task per line. Duplicate titles are removed, and each task is saved to your workspace individually.</p></div></div>
               <form onSubmit={createBulkTasks} className="bulk-task-form">
                 <label>Task titles<textarea value={bulkTaskLines} onChange={(event)=>setBulkTaskLines(event.target.value)} rows={8} maxLength={12000} placeholder={"Prepare weekly report\nFollow up with client\nReview project timeline"} /></label>
@@ -736,7 +775,7 @@ export default function Home() {
               const available = moduleInfo.status === "Available";
               const moduleTasks = moduleInfo.name === "Tasks & Work Intake" ? tasks : moduleInfo.name === "Projects & Portfolio" ? projects : moduleInfo.name === "Docs & Knowledge" ? notes : [];
               const featureItems = {
-"Tasks & Work Intake":[{name:"Task inbox",detail:"Search, sort, filter, edit, and complete tasks.",status:"Available",open:()=>setActive("My tasks")},{name:"Priority triage",detail:"Review urgent and high-priority work.",status:"Available",open:()=>{setTaskFilter("priority");setActive("My tasks")}},{name:"Deadline monitor",detail:"Review overdue and unscheduled tasks.",status:"Available",open:()=>setActive("Planner")},{name:"Bulk task creator",detail:"Create multiple workspace tasks from a simple list.",status:"Available"}],
+"Tasks & Work Intake":[{name:"Task inbox",detail:"Search, sort, filter, edit, and complete tasks.",status:"Available",open:()=>setActive("My tasks")},{name:"Priority triage",detail:"Review urgent and high-priority work.",status:"Available",open:()=>{setTaskFilter("priority");setActive("My tasks")}},{name:"Deadline monitor",detail:"Review overdue and unscheduled tasks.",status:"Available",open:()=>setActive("Planner")},{name:"Bulk task creator",detail:"Create multiple workspace tasks from a simple list.",status:"Available"},{name:"Recurring task scheduler",detail:"Generate daily, weekly, or monthly task schedules.",status:"Available"}],
 "Projects & Portfolio":[{name:"Project portfolio",detail:"Manage projects and linked task progress.",status:"Available",open:()=>setActive("Projects")},{name:"Project health",detail:"Inspect completion and related tasks.",status:"Available",open:()=>setActive("Projects")},{name:"Task Template gallery",detail:"Start common workflows from reusable task templates.",status:"Available",open:()=>setActive("Task Template gallery")},{name:"Project Template gallery",detail:"Create a project from a reusable project starter.",status:"Available"},{name:"Project templates",detail:"Reusable kickoff checklists.",status:"Planned"}],
 "Planning & Scheduling":[{name:"Due-date agenda",detail:"See upcoming tasks ordered by due date.",status:"Available",open:()=>setActive("Planner")},{name:"Today and overdue",detail:"Focus on today's and overdue work.",status:"Available",open:()=>setActive("Planner")},{name:"Recurring schedules",detail:"Repeat schedules and recurring tasks.",status:"Planned"}],
 "Docs & Knowledge":[{name:"Workspace notes",detail:"Capture, search, edit, and delete notes.",status:"Available",open:()=>setActive("Notes")},{name:"Knowledge articles",detail:"Reusable how-to guides and team knowledge.",status:"Planned"},{name:"Document version history",detail:"Compare and restore previous versions.",status:"Planned"}],
@@ -764,7 +803,7 @@ export default function Home() {
 }[moduleInfo.name] || [{name:moduleInfo.name+" workspace",detail:moduleInfo.detail,status:"Planned"}];
               return <><div className="panel-heading"><div><h2>{moduleInfo.name}</h2><p>{moduleInfo.detail}</p></div><span className="task-status">{moduleInfo.status}</span></div>
                 <div className="stats-grid" style={{marginBottom:18}}><article className="stat-card"><p>Module status</p><div className="stat-number" style={{fontSize:20}}>{moduleInfo.status}</div></article><article className="stat-card"><p>Records in this module</p><div className="stat-number">{moduleTasks.length}</div></article><article className="stat-card"><p>Roadmap tools</p><div className="stat-number">20</div></article><article className="stat-card"><p>Distinct features listed</p><div className="stat-number">{featureItems.length}</div></article></div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,250px),1fr))",gap:12}}>{featureItems.map(feature=><article key={feature.name} role="button" tabIndex={0} aria-label={`Open ${feature.name}`} onClick={()=>{setMobileMenuOpen(false);if(feature.name==="Task Template gallery"||feature.name==="Project Template gallery"||feature.name==="Bulk task creator"){setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}else if(feature.open){setSelectedFeature(null);feature.open();}else{setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setMobileMenuOpen(false);if(feature.name==="Task Template gallery"||feature.name==="Project Template gallery"||feature.name==="Bulk task creator"){setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}else if(feature.open){setSelectedFeature(null);feature.open();}else{setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}}}} style={{border:"1px solid #303638",borderRadius:14,padding:16,background:"#121516",display:"grid",alignContent:"start",gap:10,cursor:"pointer",transition:"border-color .16s,transform .16s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:8}}><h3 style={{margin:0,fontSize:15,lineHeight:1.4}}>{feature.name}</h3><span className="task-status" style={{whiteSpace:"nowrap",fontSize:10}}>{feature.status}</span></div><p style={{margin:0,fontSize:12,lineHeight:1.6,color:"#a9b0b2"}}>{feature.detail}</p>{feature.open&&<button className="project-view-tasks" onClick={e=>{e.stopPropagation();setSelectedFeature(null);feature.open();}}>Open feature <ArrowRight size={14}/></button>}</article>)}</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,250px),1fr))",gap:12}}>{featureItems.map(feature=><article key={feature.name} role="button" tabIndex={0} aria-label={`Open ${feature.name}`} onClick={()=>{setMobileMenuOpen(false);if(feature.name==="Task Template gallery"||feature.name==="Project Template gallery"||feature.name==="Bulk task creator"||feature.name==="Recurring task scheduler"){setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}else if(feature.open){setSelectedFeature(null);feature.open();}else{setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}}} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();setMobileMenuOpen(false);if(feature.name==="Task Template gallery"||feature.name==="Project Template gallery"||feature.name==="Bulk task creator"||feature.name==="Recurring task scheduler"){setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}else if(feature.open){setSelectedFeature(null);feature.open();}else{setSelectedFeature({...feature,parent:moduleInfo.name});setActive(feature.name);}}}} style={{border:"1px solid #303638",borderRadius:14,padding:16,background:"#121516",display:"grid",alignContent:"start",gap:10,cursor:"pointer",transition:"border-color .16s,transform .16s"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:8}}><h3 style={{margin:0,fontSize:15,lineHeight:1.4}}>{feature.name}</h3><span className="task-status" style={{whiteSpace:"nowrap",fontSize:10}}>{feature.status}</span></div><p style={{margin:0,fontSize:12,lineHeight:1.6,color:"#a9b0b2"}}>{feature.detail}</p>{feature.open&&<button className="project-view-tasks" onClick={e=>{e.stopPropagation();setSelectedFeature(null);feature.open();}}>Open feature <ArrowRight size={14}/></button>}</article>)}</div>
                 <p style={{marginTop:18,fontSize:12,color:"#9da5a8"}}>This is a dedicated module screen. Only features marked Available are wired to working screens; planned roadmap items are not represented as implemented. The full catalogue remains documented in <code>docs/TOOL_ROADMAP_500.md</code>.</p>
               </>;
             })()}
