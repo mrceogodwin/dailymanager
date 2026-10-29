@@ -118,6 +118,15 @@ export default function Home() {
     };
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    if (!modal) return;
+    const closeModalOnEscape = (event) => {
+      if (event.key === "Escape") setModal("");
+    };
+    window.addEventListener("keydown", closeModalOnEscape);
+    return () => window.removeEventListener("keydown", closeModalOnEscape);
+  }, [modal]);
+
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const q = search.trim().toLowerCase();
     const title = typeof task?.title === "string" ? task.title : "";
