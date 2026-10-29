@@ -5,7 +5,7 @@ import {
   Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
   Settings2, Sparkles, Target, X, Star, ChevronRight, Play, Clock, ShieldCheck, ChartNoAxesCombined, Users, Layers, Zap, CheckCircle2, ArrowUpRight, Pencil, Trash2,
-  Inbox, BriefcaseBusiness, CalendarClock, BookOpenText, MessageSquareText, Workflow, BrainCircuit, Timer, ClipboardList, ContactRound, WalletCards, UserRoundCog, KanbanSquare, MonitorCog, Megaphone, TrendingUp, Headset, Files, PlugZap, Focus, Boxes, Activity
+  Inbox, BriefcaseBusiness, CalendarClock, BookOpenText, MessageSquareText, Workflow, BrainCircuit, Timer, ClipboardList, ContactRound, WalletCards, UserRoundCog, KanbanSquare, MonitorCog, Megaphone, TrendingUp, Headset, Files, PlugZap, Focus, Boxes
 } from "lucide-react";
 
 const NAV = [
