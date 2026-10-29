@@ -349,3 +349,9 @@
 .app-shell[data-theme="light"] .activity-entry-icon{background:#f9e9e5;color:#c64b45}
 .app-shell[data-theme="light"] .activity-entry-icon.activity-project{background:#eee9f8;color:#795cb0}
 @media(max-width:560px){.activity-entry{gap:9px}.activity-entry-type{display:none}}
+
+.member-workload{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.member-workload span{font-size:10px;padding:4px 7px;border:1px solid #343b3d;border-radius:99px;color:#b7c0c1;background:#1b2021}
+.member-workload span:last-child{color:#f09a8f;border-color:#62413e}
+.app-shell[data-theme="light"] .member-workload span{background:#f7f3ee;border-color:#e8e1d8;color:#655e58}
+.app-shell[data-theme="light"] .member-workload span:last-child{color:#bd514a;border-color:#efcec8}
