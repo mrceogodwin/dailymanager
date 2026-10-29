@@ -163,7 +163,35 @@ export default function Home() {
     }
   }
 
-  function editTask(task) {\n    setEditingTaskId(task.id);\n    setDraft({ title: task.title || "", body: "", description: task.description || "", due_at: task.due_at ? String(task.due_at).slice(0, 10) : "", project_id: task.project_id || "", priority: task.priority || "medium" });\n    setModal("edit_task");\n  }\n\n  async function deleteTask(task) {\n    if (!window.confirm(`Delete “${task.title}”? This cannot be undone.`)) return;\n    try {\n      await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "task_delete", id: task.id }) });\n      setTasks(items => items.filter(item => item.id !== task.id));\n      setNotice("Task deleted.");\n      await refresh();\n    } catch (error) { setNotice(error.message); }\n  }\n\n  async function toggleTask(task) {
+  function editTask(task) {
+    setEditingTaskId(task.id);
+    setDraft({
+      title: task.title || "",
+      body: "",
+      description: task.description || "",
+      due_at: task.due_at ? String(task.due_at).slice(0, 10) : "",
+      project_id: task.project_id || "",
+      priority: task.priority || "medium",
+    });
+    setModal("edit_task");
+  }
+
+  async function deleteTask(task) {
+    if (!window.confirm(`Delete “${task.title}”? This cannot be undone.`)) return;
+    try {
+      await api("/api/workspace", {
+        method: "POST",
+        body: JSON.stringify({ kind: "task_delete", id: task.id }),
+      });
+      setTasks(items => items.filter(item => item.id !== task.id));
+      setNotice("Task deleted.");
+      await refresh();
+    } catch (error) {
+      setNotice(error.message);
+    }
+  }
+
+  async function toggleTask(task) {
     await updateTaskStatus(task, task.status === "done" ? "todo" : "done");
   }
 
