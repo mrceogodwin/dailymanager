@@ -744,6 +744,12 @@ export default function Home() {
             const activeTasks=related.filter(task=>!["done","cancelled"].includes(task.status));
             const overdue=activeTasks.filter(task=>task.due_at&&parseDueDate(task.due_at)<todayStart);
             const progress=countedRelated.length?Math.round(done/countedRelated.length*100):0;
+            const priorityGroups=[{key:"urgent",label:"Urgent"},{key:"high",label:"High"},{key:"medium",label:"Medium"},{key:"low",label:"Low"}];
+            const todayKey=new Date(); todayKey.setHours(0,0,0,0);
+            const nextWeek=new Date(todayKey); nextWeek.setDate(nextWeek.getDate()+7);
+            const dueNextWeek=activeTasks.filter(task=>task.due_at&&parseDueDate(task.due_at)>=todayKey&&parseDueDate(task.due_at)<nextWeek).sort((a,b)=>parseDueDate(a.due_at)-parseDueDate(b.due_at));
+            const unscheduled=activeTasks.filter(task=>!task.due_at).length;
+
             const statusGroups=[{key:"todo",label:"To do"},{key:"in_progress",label:"In progress"},{key:"done",label:"Completed"},{key:"cancelled",label:"Cancelled"}];
             return <div style={{display:"grid",gap:18}}>
               <section className="panel">
@@ -756,6 +762,21 @@ export default function Home() {
                 </div>
                 <div style={{marginTop:17}}><div className="project-progress-label"><span>Delivery progress</span><b>{done} of {countedRelated.length} complete</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div></div>
                 <div className="project-report-actions"><button type="button" className="project-view-tasks" onClick={()=>exportProjectReport(project,related)}><Files size={14}/> Export project report (CSV)</button><span>Includes every linked task, status, priority and due date.</span></div>
+              </section>
+              <section className="panel project-workload-panel">
+                <div className="panel-heading"><div><h2>Workload &amp; schedule</h2><p>See how open work is distributed and what is due next.</p></div><span className="task-status">{activeTasks.length} open</span></div>
+                <div className="project-workload-stats">
+                  <article><span>Overdue</span><b className={overdue.length?"workload-danger":""}>{overdue.length}</b></article>
+                  <article><span>Due in 7 days</span><b>{dueNextWeek.length}</b></article>
+                  <article><span>Unscheduled</span><b>{unscheduled}</b></article>
+                </div>
+                <div className="project-priority-list"><h3>Open tasks by priority</h3>
+                  {priorityGroups.map(group=>{const count=activeTasks.filter(task=>(task.priority||"medium")===group.key).length;const width=activeTasks.length?Math.round(count/activeTasks.length*100):0;return <div className="project-priority-row" key={group.key}><span>{group.label}</span><div className="project-priority-track"><i style={{width:width+"%"}}/></div><b>{count}</b></div>})}
+                </div>
+                <div className="project-upcoming-list"><h3>Next 7 days</h3>
+                  {dueNextWeek.slice(0,8).map(task=><div className="project-upcoming-row" key={task.id}><div><b>{task.title}</b><span>{task.priority||"medium"} priority</span></div><time>{parseDueDate(task.due_at).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})}</time></div>)}
+                  {!dueNextWeek.length&&<p className="empty-state">No open tasks are due in the next seven days.</p>}
+                </div>
               </section>
               {tasks.some(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)) && <section className="panel">
                 <div className="panel-heading"><div><h2>Unassigned tasks</h2><p>Add existing personal tasks to this project without recreating them.</p></div><span className="task-status">{tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).length} available</span></div>
