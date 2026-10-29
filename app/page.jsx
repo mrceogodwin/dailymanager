@@ -13,6 +13,7 @@ const NAV = [
   { label: "Task board", icon: Layers },
   { label: "Task table", icon: ChartNoAxesCombined },
   { label: "Projects", icon: FolderKanban },
+  { label: "Project portfolio", icon: ChartNoAxesCombined },
   { label: "Planner", icon: CalendarDays },
   { label: "Notes", icon: FileText },
   { label: "Goals & insights", icon: Target },
@@ -468,6 +469,39 @@ export default function Home() {
             </div>
             {!sortedTasksByFilter.length&&<p className="empty-state">No task records match your search. Create a task or clear the search.</p>}
             <p style={{marginTop:14,fontSize:12,color:"#9da5a8"}}>{sortedTasksByFilter.length} task record{sortedTasksByFilter.length===1?"":"s"} shown. Status changes save through the workspace API.</p>
+          </section>}
+          {active==="Project portfolio" && <section className="panel">
+            <div className="panel-heading"><div><h2>Project portfolio</h2><p>A portfolio-level view of delivery, workload, and project health.</p></div><button className="primary-button" onClick={()=>create("project")}><Plus size={15}/> New project</button></div>
+            <div className="stats-grid" style={{marginBottom:20}}>
+              <article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={17}/></span></div><p>Total projects</p><div className="stat-number">{projects.length}</div></article>
+              <article className="stat-card"><div className="stat-top"><span className="stat-icon green"><CheckCircle2 size={17}/></span></div><p>Tasks completed</p><div className="stat-number">{tasks.filter(t=>t.status==="done").length}</div></article>
+              <article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Clock size={17}/></span></div><p>Overdue open tasks</p><div className="stat-number">{overdueTasks.length}</div></article>
+              <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><Activity size={17}/></span></div><p>Projects with tasks</p><div className="stat-number">{projects.filter(p=>tasks.some(t=>String(t.project_id||"")===String(p.id))).length}</div></article>
+            </div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",marginBottom:16}}>
+              <input aria-label="Search project portfolio" placeholder="Search projects by name or description…" value={search} onChange={e=>setSearch(e.target.value)} style={{...inputStyle,flex:"1 1 250px",maxWidth:460}}/>
+              <button className="period-select" onClick={()=>setActive("Projects")}>Manage all projects <ArrowRight size={14}/></button>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,280px),1fr))",gap:14}}>
+              {filteredProjects.map(project=>{
+                const linked=tasks.filter(t=>String(t.project_id||"")===String(project.id));
+                const done=linked.filter(t=>t.status==="done").length;
+                const open=linked.filter(t=>!["done","cancelled"].includes(t.status));
+                const overdue= open.filter(t=>t.due_at&&new Date(t.due_at)<todayStart).length;
+                const progress=linked.length?Math.round(done/linked.length*100):0;
+                const health=overdue>0?"Needs attention":linked.length&&progress===100?"Completed":linked.length?"On track":"Not started";
+                const healthColor=overdue>0?"#f0a0a0":linked.length&&progress===100?"#8ed9ab":linked.length?"#e9c27b":"#aab2b6";
+                return <article key={project.id} style={{border:"1px solid #303638",borderRadius:15,padding:17,background:"#121516",display:"grid",gap:13,alignContent:"start"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:10}}><span className="stat-icon orange"><FolderKanban size={17}/></span><span className="task-status" style={{color:healthColor,borderColor:healthColor+"55"}}>{health}</span></div>
+                  <div><h3 style={{fontSize:16,margin:"0 0 6px",overflowWrap:"anywhere"}}>{project.name}</h3><p style={{fontSize:12,color:"#a9b0b2",lineHeight:1.6,margin:0}}>{project.description||"No project description yet."}</p></div>
+                  <div className="project-progress-label"><span>{done} / {linked.length} tasks complete</span><b>{progress}%</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}}>{[{label:"Open",value:open.length},{label:"Overdue",value:overdue},{label:"Cancelled",value:linked.filter(t=>t.status==="cancelled").length}].map(item=><div key={item.label} style={{background:"#1a1e20",borderRadius:9,padding:"10px 8px"}}><span style={{display:"block",fontSize:10,color:"#9da5a8",marginBottom:5}}>{item.label}</span><b style={{fontSize:17}}>{item.value}</b></div>)}</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("My tasks");setTaskFilter("all");}}>View tasks <ArrowRight size={14}/></button><button className="project-view-tasks" onClick={()=>{setSearch(project.name);setActive("Projects");}}>Edit project <Pencil size={13}/></button></div>
+                </article>;
+              })}
+            </div>
+            {!filteredProjects.length&&<p className="empty-state">{projects.length?"No projects match this search. Try a different keyword.":"Your portfolio is empty. Create your first project to start tracking delivery."}</p>}
+            <p style={{fontSize:11,color:"#929b9f",marginTop:16}}>Health is calculated from linked task status and due dates; it is a lightweight signal, not a project-risk prediction.</p>
           </section>}
           {active==="Projects" && <section className="panel"><div className="panel-heading"><div><h2>Your projects</h2><p>Track progress across the work you're building.</p></div><button className="primary-button" onClick={()=>create("project")}><Plus size={15}/> New project</button></div><div className="project-grid">{filteredProjects.map(p=>{const projectTasks=tasks.filter(t=>String(t.project_id||"")===String(p.id));const projectDone=projectTasks.filter(t=>t.status==="done").length;const progress=projectTasks.length?Math.round(projectDone/projectTasks.length*100):0;return <article key={p.id} className="project-card"><div className="project-card-top"><span className="stat-icon orange"><FolderKanban size={17}/></span><span className="project-status">{p.status||"Active"}</span></div><h3>{p.name}</h3><p>{p.description||"A dedicated space for this project."}</p><div style={{display:"flex",gap:8,marginTop:8}}><button className="icon-button" aria-label={"Edit project "+p.name} title="Edit project" onClick={()=>editProject(p)}><Pencil size={14}/></button><button className="icon-button" aria-label={"Delete project "+p.name} title="Delete project" onClick={()=>deleteProject(p)}><Trash2 size={14}/></button></div><div className="project-progress-label"><span>{projectDone} of {projectTasks.length} tasks complete</span><b>{progress}%</b></div><div className="focus-progress"><span style={{width:`${progress}%`}}/></div><button className="project-view-tasks" onClick={()=>{setSearch(p.name);setActive("My tasks");setTaskFilter("all");}}>View related tasks <ArrowRight size={14}/></button></article>})}</div>{!filteredProjects.length&&<p className="empty-state">Your first project starts here. Create one, then assign tasks to it.</p>}</section>}
           {active==="Notes" && <section className="panel"><div className="panel-heading"><div><h2>Workspace notes</h2><p>Keep decisions and useful ideas close.</p></div><button className="primary-button" onClick={()=>create("note")}><Plus size={15}/> New note</button></div>{filteredNotes.map(n=><article key={n.id} className="task-row note-row"><span className="stat-icon pink"><FileText size={17}/></span><div className="task-info"><b>{n.title}</b><span className="note-preview">{n.body||"No note content yet."}</span><small className="note-meta">{n.updated_at?`Updated ${new Date(n.updated_at).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`:"Saved note"}</small></div><div style={{display:"flex",gap:6,flexShrink:0}}><button className="icon-button" aria-label={"Edit note "+n.title} title="Edit note" onClick={()=>editNote(n)}><Pencil size={14}/></button><button className="icon-button" aria-label={"Delete note "+n.title} title="Delete note" onClick={()=>deleteNote(n)}><Trash2 size={14}/></button></div></article>)}{!filteredNotes.length&&<p className="empty-state">{notes.length?"No notes match your search. Try a different keyword.":"Your knowledge hub starts with one good note."}</p>}</section>}
