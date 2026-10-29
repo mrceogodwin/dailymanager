@@ -175,3 +175,14 @@
 .feature-detail-card p,.feature-roadmap-note p{margin:0;color:#a9abb7;line-height:1.7;font-size:12px}
 .feature-roadmap-note{display:grid;justify-items:start;gap:10px;padding:16px;border:1px dashed #41424d;border-radius:12px}
 @media(max-width:720px){.feature-detail-card{padding:14px;gap:11px}.feature-detail-icon{flex-basis:38px;height:38px}}
+
+
+/* Feature-specific tool detail layouts */
+.feature-workflow-preview{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));align-items:stretch;gap:12px;padding:16px;border:1px solid #303638;border-radius:14px;background:#101213}
+.feature-workflow-preview>label{display:grid;align-content:start;gap:9px;font-size:12px;font-weight:650;color:#d8dcdd}
+.feature-workflow-preview select{width:100%;min-width:0;padding:11px 12px;border:1px solid #353a3c;border-radius:9px;background:#191d1e;color:#c1c7c8;font:inherit}
+.feature-flow-arrow{display:grid;place-items:center;color:#a99aff}
+.feature-step{display:grid;align-content:start;gap:8px;padding:14px;border:1px solid #303638;border-radius:11px;background:#171a1b}
+.feature-step>span{display:grid;place-items:center;width:28px;height:28px;border-radius:8px;background:#29243b;color:#c3b3ff;font-size:11px;font-weight:750}
+.feature-step>b{font-size:13px}
+.feature-step>p{margin:0;color:#9da5a8;font-size:12px;line-height:1.65}
