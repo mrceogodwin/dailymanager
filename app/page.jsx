@@ -107,7 +107,14 @@ export default function Home() {
     const name = typeof project?.name === "string" ? project.name : "";
     return !q || name.toLowerCase().includes(q);
   }), [projects, search]);
-  const filteredNotes = useMemo(() => notes.filter((note) => !search.trim() || (note.title || "").toLowerCase().includes(search.trim().toLowerCase()) || (note.body || "").toLowerCase().includes(search.trim().toLowerCase())), [notes, search]);
+  const filteredNotes = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return notes.filter((note) => {
+      const title = typeof note?.title === "string" ? note.title : "";
+      const body = typeof note?.body === "string" ? note.body : "";
+      return !q || title.toLowerCase().includes(q) || body.toLowerCase().includes(q);
+    });
+  }, [notes, search]);
   const completed = tasks.filter((task) => task.status === "done").length;
   const openTasks = tasks.length - completed;
   const plannerTasks = useMemo(() => filteredTasks.filter((task) => task.status !== "done").sort((a, b) => {
