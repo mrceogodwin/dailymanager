@@ -19,6 +19,7 @@ const NAV = [
   { label: "Calendar", icon: CalendarDays },
   { label: "Notes", icon: FileText },
   { label: "Goals & insights", icon: Target },
+  { label: "Team performance", icon: Users },
   { label: "Activity", icon: Activity },
   { label: "Settings", icon: Settings2 },
 ];
@@ -951,6 +952,43 @@ export default function Home() {
               </div>;
             })()}
           </section>}
+          {active==="Team performance" && (() => {
+            const activeTasks = tasks.filter(task => !["cancelled"].includes(task.status));
+            const membersWithMetrics = members.map(member => {
+              const assigned = activeTasks.filter(task => String(task.assigned_to || "") === String(member.id));
+              const done = assigned.filter(task => task.status === "done").length;
+              const open = assigned.filter(task => !["done","cancelled"].includes(task.status)).length;
+              const inProgress = assigned.filter(task => task.status === "in_progress").length;
+              const overdue = assigned.filter(task => !["done","cancelled"].includes(task.status) && task.due_at && parseDueDate(task.due_at) < todayStart).length;
+              const rate = assigned.length ? Math.round(done / assigned.length * 100) : 0;
+              return { ...member, assigned: assigned.length, done, open, inProgress, overdue, rate };
+            }).sort((a,b) => b.open-a.open || b.overdue-a.overdue || b.done-a.done || String(a.name||a.email).localeCompare(String(b.name||b.email)));
+            const assignedCount = activeTasks.filter(task => task.assigned_to).length;
+            const unassignedCount = activeTasks.filter(task => !task.assigned_to).length;
+            const completedCount = activeTasks.filter(task => task.status === "done").length;
+            const overdueCount = activeTasks.filter(task => !["done","cancelled"].includes(task.status) && task.due_at && parseDueDate(task.due_at) < todayStart).length;
+            const teamRate = assignedCount ? Math.round(activeTasks.filter(task => task.status === "done" && task.assigned_to).length / assignedCount * 100) : 0;
+            return <div style={{display:"grid",gap:18}}>
+              <div className="stats-grid">
+                <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><Users size={18}/></span></div><p>Workspace members</p><div className="stat-number">{members.length}</div></article>
+                <article className="stat-card"><div className="stat-top"><span className="stat-icon green"><CheckCircle2 size={18}/></span></div><p>Completed assigned</p><div className="stat-number">{completedCount}</div></article>
+                <article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><Clock size={18}/></span></div><p>Overdue assigned</p><div className="stat-number">{overdueCount}</div></article>
+                <article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><TrendingUp size={18}/></span></div><p>Team completion</p><div className="stat-number">{teamRate}%</div></article>
+              </div>
+              <section className="panel">
+                <div className="panel-heading"><div><h2>Workload by teammate</h2><p>Live counts from tasks currently assigned to workspace members. Cancelled tasks are excluded.</p></div><button className="project-view-tasks" onClick={()=>setActive("Settings")}>Manage members <ArrowRight size={14}/></button></div>
+                {membersWithMetrics.length ? <div style={{display:"grid",gap:0}}>
+                  {membersWithMetrics.map(member=><article key={member.id} style={{display:"grid",gridTemplateColumns:"minmax(150px,1.2fr) repeat(4,minmax(58px,.55fr)) minmax(100px,1fr)",gap:12,alignItems:"center",padding:"15px 0",borderTop:"1px solid var(--line,#303538)"}}>
+                    <div style={{minWidth:0}}><b style={{display:"block",fontSize:13,overflowWrap:"anywhere"}}>{member.name||member.email}</b><span style={{fontSize:11,color:"var(--muted,#929b9f)"}}>{member.role||"member"}{String(member.id)===String(user?.id)?" · You":""}</span></div>
+                    {[["Assigned",member.assigned],["Open",member.open],["Done",member.done],["Overdue",member.overdue]].map(([label,value])=><div key={label}><span style={{display:"block",fontSize:10,color:"var(--muted,#929b9f)"}}>{label}</span><b style={{fontSize:16,color:label==="Overdue"&&value?"#ef8a72":"inherit"}}>{value}</b></div>)}
+                    <div><div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--muted,#929b9f)",marginBottom:6}}><span>Completion</span><b>{member.rate}%</b></div><div className="focus-progress"><span style={{width:member.rate+"%"}}/></div></div>
+                  </article>)}
+                </div> : <p className="empty-state">Workspace members will appear here when they join.</p>}
+                <div className="insight-breakdown" style={{marginTop:14}}><div><span>Assigned tasks</span><b>{assignedCount}</b></div><div><span>Unassigned tasks</span><b>{unassignedCount}</b></div><div><span>In progress</span><b>{activeTasks.filter(task=>task.status==="in_progress").length}</b></div><div><span>Open workload</span><b>{activeTasks.filter(task=>!["done","cancelled"].includes(task.status)).length}</b></div></div>
+                <p style={{fontSize:11,color:"var(--muted,#929b9f)",margin:"14px 0 0"}}>Completion rate is completed assigned tasks divided by all non-cancelled assigned tasks. Overdue means a task has a due date before today and is not completed or cancelled. Members with no assigned tasks show 0%.</p>
+              </section>
+            </div>;
+          })()}
           {active==="Goals & insights" && <><div className="stats-grid"><article className="stat-card"><div className="stat-top"><span className="stat-icon green"><Check size={18}/></span></div><p>Completion rate</p><div className="stat-number">{tasks.length?Math.round(completed/tasks.length*100):0}%</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={18}/></span></div><p>Tasks completed</p><div className="stat-number">{completed}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={18}/></span></div><p>Projects</p><div className="stat-number">{projects.length}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Activity size={18}/></span></div><p>High priority open</p><div className="stat-number">{highPriorityTasks}</div></article></div><section className="panel"><div className="panel-heading"><div><h2>Progress overview</h2><p>A snapshot of the work you've recorded in DailyManager.</p></div></div><div className="insight-progress-copy"><b>{completed} of {tasks.length} tasks completed</b><span>{tasks.length?Math.round(completed/tasks.length*100):0}% complete</span></div><div className="focus-progress"><span style={{width:`${tasks.length?completed/tasks.length*100:0}%`}}/></div><div className="insight-breakdown"><div><span>Still open</span><b>{openTasks}</b></div><div><span>Overdue</span><b>{overdueTasks.length}</b></div><div><span>Due today</span><b>{dueTodayTasks.length}</b></div><div><span>Notes captured</span><b>{notes.length}</b></div></div>{!tasks.length&&<p className="empty-state">Your insights will become more useful as you add and complete tasks.</p>}</section></>}
           {TOOL_CATEGORIES.some(item => item.name === active) && <section className="panel">
             {(() => {
