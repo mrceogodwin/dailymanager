@@ -16,6 +16,7 @@ async function ensureActivityTable() {
     summary TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
+  await query("ALTER TABLE workspace_activity ALTER COLUMN workspace_id TYPE TEXT USING workspace_id::text");
 }
 async function recordActivity({ workspaceId, user, action, entityType, entityId, summary }) {
   try {
@@ -154,13 +155,15 @@ export async function POST(request) {
         [title, noteBody, body.id, workspaceId]
       );
       if (!result.rowCount) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "updated", entityType: "note", entityId: body.id, summary: `Updated note “${title}”.` });
       return NextResponse.json({ ok: true });
     }
 
     if (body.kind === "note_delete") {
       if (!body.id) return NextResponse.json({ error: "Note ID is required." }, { status: 400 });
-      const result = await query("DELETE FROM workspace_notes WHERE id = $1 AND workspace_id = $2 RETURNING id", [body.id, workspaceId]);
-      if (!result.rowCount) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+      const note = await query("DELETE FROM workspace_notes WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
+      if (!note.rowCount) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "deleted", entityType: "note", entityId: body.id, summary: `Deleted note “${note.rows[0].title}”.` });
       return NextResponse.json({ ok: true });
     }
 
@@ -179,8 +182,9 @@ export async function POST(request) {
       if (!body.id) return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
       const linkedTasks = await query("SELECT id FROM tasks WHERE project_id = $1 AND workspace_id = $2 LIMIT 1", [body.id, workspaceId]);
       if (linkedTasks.rowCount) return NextResponse.json({ error: "Move or unassign this project’s tasks before deleting the project." }, { status: 409 });
-      const result = await query("DELETE FROM projects WHERE id = $1 AND workspace_id = $2 RETURNING id", [body.id, workspaceId]);
+      const result = await query("DELETE FROM projects WHERE id = $1 AND workspace_id = $2 RETURNING name", [body.id, workspaceId]);
       if (!result.rowCount) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "deleted", entityType: "project", entityId: body.id, summary: `Deleted project “${result.rows[0].name}”.` });
       return NextResponse.json({ ok: true });
     }
 
@@ -204,6 +208,7 @@ export async function POST(request) {
         "INSERT INTO workspace_notes (workspace_id, title, body, created_by) VALUES ($1, $2, $3, $4) RETURNING id",
         [workspaceId, title, noteBody, user.id]
       );
+      await recordActivity({ workspaceId, user, action: "created", entityType: "note", entityId: result.rows[0].id, summary: `Created note “${title}”.` });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
