@@ -53,3 +53,17 @@
 .note-preview{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65}
 
 .note-meta{display:block;margin-top:7px;color:var(--muted);font-size:10px;letter-spacing:.02em}
+
+
+/* Accessible text for controls that already have a visible visual label. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
