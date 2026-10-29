@@ -104,6 +104,15 @@ export default function Home() {
     refresh().catch(() => {}).finally(() => setLoading(false));
   }, [refresh]);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
+
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const q = search.trim().toLowerCase();
     const title = typeof task?.title === "string" ? task.title : "";
