@@ -114,7 +114,8 @@ export default function Home() {
   const filteredProjects = useMemo(() => projects.filter((project) => {
     const q = search.trim().toLowerCase();
     const name = typeof project?.name === "string" ? project.name : "";
-    return !q || name.toLowerCase().includes(q);
+    const description = typeof project?.description === "string" ? project.description : "";
+    return !q || name.toLowerCase().includes(q) || description.toLowerCase().includes(q);
   }), [projects, search]);
   const filteredNotes = useMemo(() => {
     const q = search.trim().toLowerCase();
