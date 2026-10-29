@@ -12,7 +12,8 @@ export async function POST(request) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
-  if (!email || !password) return NextResponse.json({ error: "Enter your email and password." }, { status: 400 });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
+  if (!password || password.length > 128) return NextResponse.json({ error: "Enter your password (maximum 128 characters)." }, { status: 400 });
 
   try {
     const limit = await checkAuthRateLimit(request, "login", email);
