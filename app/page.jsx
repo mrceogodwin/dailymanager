@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu,
+  Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
   Settings2, Sparkles, Target, X, Star, ChevronRight, Play, Clock, ShieldCheck, ChartNoAxesCombined, Users, Layers, Zap, CheckCircle2, ArrowUpRight, Pencil, Trash2,
   Inbox, BriefcaseBusiness, CalendarClock, BookOpenText, MessageSquareText, Workflow, BrainCircuit, Timer, ClipboardList, ContactRound, WalletCards, UserRoundCog, KanbanSquare, MonitorCog, Megaphone, TrendingUp, Headset, Files, PlugZap, Focus, Boxes
@@ -133,6 +133,7 @@ export default function Home() {
   const [toolSearch, setToolSearch] = useState("");
   const [toolFilter, setToolFilter] = useState("All");
   const [selectedFeature, setSelectedFeature] = useState(null);
+  const [theme, setTheme] = useState("dark");
   const [bulkTaskLines, setBulkTaskLines] = useState("");
   const [bulkTaskPriority, setBulkTaskPriority] = useState("medium");
   const [bulkTaskProject, setBulkTaskProject] = useState("");
@@ -156,6 +157,15 @@ export default function Home() {
   useEffect(() => {
     refresh().catch(() => {}).finally(() => setLoading(false));
   }, [refresh]);
+
+  useEffect(() => {
+    try { setTheme(localStorage.getItem("dailymanager-theme") === "light" ? "light" : "dark"); } catch {}
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.dmTheme = theme;
+    try { localStorage.setItem("dailymanager-theme", theme); } catch {}
+  }, [theme]);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -533,7 +543,7 @@ export default function Home() {
     return aDue - bDue;
   });
   return (
-    <main className="app-shell" style={{ minHeight: "100vh" }}>
+    <main className="app-shell" data-theme={theme} style={{ minHeight: "100vh" }}>
       {mobileMenuOpen && <button className="mobile-menu-backdrop" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)} />}
       <aside id="workspace-sidebar" aria-label="Workspace navigation" className={`sidebar${mobileMenuOpen ? " mobile-menu-open" : ""}`}>
         <a className="brand" href="#" onClick={e => { e.preventDefault(); setActive("Overview"); setMobileMenuOpen(false); }}>
@@ -545,6 +555,7 @@ export default function Home() {
           <div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={17}/></div><b>Make room for more</b><p>Unlock your full potential with DailyManager Pro.</p><button onClick={()=>setNotice("Billing is not connected yet.")}>Explore plans <ArrowRight size={14}/></button></div>
           <button className="nav-item" onClick={()=>setActive("Settings")}><Settings2 size={17}/>Settings</button>
           <button className="nav-item" onClick={()=>setNotice("Help center is coming in a later stage.")}><CircleHelp size={17}/>Help & support</button>
+          <div className="theme-switch-row"><span className="theme-switch-label"><Sun size={15}/> Appearance</span><button type="button" className={`theme-switch ${theme==="light"?"is-light":""}`} role="switch" aria-checked={theme==="light"} aria-label={theme==="light"?"Switch to dark appearance":"Switch to light appearance"} onClick={()=>setTheme(value=>value==="dark"?"light":"dark")}><span className="theme-switch-thumb">{theme==="light"?<Sun size={12}/>:<Moon size={12}/>}</span><span>{theme==="light"?"Light":"Dark"}</span></button></div>
           <div className="profile"><div className="profile-avatar">{user.name.split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</div><div className="profile-copy"><b>{user.name}</b><small>{user.email}</small></div><button aria-label="Log out" title="Log out" onClick={logout} style={{ border: 0, background: "transparent", color: "inherit", cursor: "pointer" }}><LogOut size={16}/></button></div>
         </div>
       </aside>
