@@ -14,6 +14,30 @@ async function validateTaskAssignee(assigneeId, workspaceId) {
   return String(assigneeId);
 }
 
+async function ensureWorkspaceNotificationsTable() {
+  await query(`CREATE TABLE IF NOT EXISTS workspace_notifications (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    actor_id TEXT,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query("CREATE INDEX IF NOT EXISTS workspace_notifications_user_created_idx ON workspace_notifications (workspace_id, user_id, created_at DESC, id DESC)");
+}
+async function createWorkspaceNotification({ workspaceId, userId, actorId, kind, title, body, entityType, entityId }) {
+  if (!userId || String(userId) === String(actorId)) return;
+  await ensureWorkspaceNotificationsTable();
+  await query(`INSERT INTO workspace_notifications (workspace_id, user_id, actor_id, kind, title, body, entity_type, entity_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    [workspaceId, String(userId), String(actorId), kind, title, body, entityType || null, entityId == null ? null : String(entityId)]);
+}
+
 async function ensureTaskCommentsTable() {
   await query(`CREATE TABLE IF NOT EXISTS task_comments (
     id BIGSERIAL PRIMARY KEY,
@@ -82,7 +106,15 @@ export async function GET(request) {
     if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
     const workspaceId = await getWorkspace(user.id);
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
-    const taskId = new URL(request.url).searchParams.get("task_id");
+    const params = new URL(request.url).searchParams;
+    if (params.get("notifications") === "1") {
+      await ensureWorkspaceNotificationsTable();
+      const result = await query(`SELECT id, actor_id, kind, title, body, entity_type, entity_id, read_at, created_at
+        FROM workspace_notifications WHERE workspace_id = $1 AND user_id = $2
+        ORDER BY created_at DESC, id DESC LIMIT 50`, [workspaceId, String(user.id)]);
+      return NextResponse.json({ notifications: result.rows, unread_count: result.rows.filter(item => !item.read_at).length });
+    }
+    const taskId = params.get("task_id");
     if (taskId) {
       await ensureTaskCommentsTable();
       const task = await query("SELECT id FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
@@ -133,6 +165,17 @@ export async function POST(request) {
     const isOwner = String(ownerResult.rows[0]?.owner_user_id) === String(user.id);
     const canManageWorkspace = isOwner || role === "admin";
     if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    if (body.kind === "notification_read") {
+      await ensureWorkspaceNotificationsTable();
+      if (body.id === "all") {
+        await query("UPDATE workspace_notifications SET read_at = NOW() WHERE workspace_id = $1 AND user_id = $2 AND read_at IS NULL", [workspaceId, String(user.id)]);
+      } else if (body.id) {
+        await query("UPDATE workspace_notifications SET read_at = NOW() WHERE id = $1 AND workspace_id = $2 AND user_id = $3", [body.id, workspaceId, String(user.id)]);
+      } else {
+        return NextResponse.json({ error: "Notification ID is required." }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true });
+    }
     const requireTaskAccess = async (taskId) => {
       const task = await query("SELECT created_by, assigned_to FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
       if (!task.rowCount) return { error: NextResponse.json({ error: "Task not found." }, { status: 404 }) };
@@ -176,6 +219,7 @@ export async function POST(request) {
         [workspaceId, projectId, title, description, priority, dueAt ? dueAt.toISOString() : null, user.id, assignedTo]
       );
       await recordActivity({ workspaceId, user, action: "created", entityType: "task", entityId: result.rows[0].id, summary: `Created task “${title}”.` });
+      if (assignedTo) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "New task assigned", body: `You were assigned “${title}”.`, entityType: "task", entityId: result.rows[0].id });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
@@ -192,6 +236,7 @@ export async function POST(request) {
       if (!priority) return NextResponse.json({ error: "Choose a valid task priority." }, { status: 400 });
       if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
       const assignedTo = await validateTaskAssignee(body.assigned_to, workspaceId);
+      const previousAssignee = access.task.assigned_to == null ? null : String(access.task.assigned_to);
       const assigneeResult = assignedTo ? await query("SELECT name, email FROM app_users WHERE id::text = $1 LIMIT 1", [assignedTo]) : null;
       const assigneeLabel = assigneeResult?.rows[0]?.name || assigneeResult?.rows[0]?.email || null;
       const projectId = body.project_id || null;
@@ -205,6 +250,7 @@ export async function POST(request) {
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
       await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignedTo ? ` and assigned it to ${assigneeLabel || "a team member"}` : " and cleared its assignee"}.` });
+      if (assignedTo && String(assignedTo) !== String(previousAssignee || "")) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "Task assigned to you", body: `You were assigned “${title}”.`, entityType: "task", entityId: body.id });
       return NextResponse.json({ ok: true });
     }
 
