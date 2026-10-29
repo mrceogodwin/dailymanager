@@ -196,10 +196,13 @@ export default function Home() {
   const completed = tasks.filter((task) => task.status === "done").length;
   const openTasks = tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
   const plannerTasks = useMemo(() => filteredTasks.filter((task) => !["done", "cancelled"].includes(task.status)).sort((a, b) => {
-    if (!a.due_at && !b.due_at) return 0;
-    if (!a.due_at) return 1;
-    if (!b.due_at) return -1;
-    return parseDueDate(a.due_at).getTime() - parseDueDate(b.due_at).getTime();
+    const aDue = a.due_at ? parseDueDate(a.due_at).getTime() : Number.POSITIVE_INFINITY;
+    const bDue = b.due_at ? parseDueDate(b.due_at).getTime() : Number.POSITIVE_INFINITY;
+    if (aDue !== bDue) return aDue - bDue;
+    const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3 };
+    const priorityDifference = (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4);
+    if (priorityDifference !== 0) return priorityDifference;
+    return String(a.title || "").localeCompare(String(b.title || ""));
   }), [filteredTasks]);
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const overdueTasks = plannerTasks.filter((task) => task.due_at && parseDueDate(task.due_at) < todayStart);
