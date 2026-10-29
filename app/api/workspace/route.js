@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 async function ensureActivityTable() {
   await query(`CREATE TABLE IF NOT EXISTS workspace_activity (
     id BIGSERIAL PRIMARY KEY,
-    workspace_id BIGINT NOT NULL,
+    workspace_id TEXT NOT NULL,
     actor_id TEXT,
     actor_name TEXT NOT NULL DEFAULT 'Workspace member',
     action TEXT NOT NULL,
