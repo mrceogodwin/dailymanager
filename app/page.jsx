@@ -5,7 +5,7 @@ import {
   Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
   Settings2, Sparkles, Target, X, Star, ChevronRight, Play, Clock, ShieldCheck, ChartNoAxesCombined, Users, Layers, Zap, CheckCircle2, ArrowUpRight, Pencil, Trash2,
-  Inbox, BriefcaseBusiness, CalendarClock, BookOpenText, MessageSquareText, Workflow, BrainCircuit, Timer, ClipboardList, ContactRound, WalletCards, UserRoundCog, KanbanSquare, MonitorCog, Megaphone, TrendingUp, Headset, Files, PlugZap, Focus, Boxes
+  Inbox, BriefcaseBusiness, CalendarClock, BookOpenText, MessageSquareText, Workflow, BrainCircuit, Timer, ClipboardList, ContactRound, WalletCards, UserRoundCog, KanbanSquare, MonitorCog, Megaphone, TrendingUp, Headset, Files, PlugZap, Focus, Boxes, Activity
 } from "lucide-react";
 
 const NAV = [
@@ -19,6 +19,7 @@ const NAV = [
   { label: "Calendar", icon: CalendarDays },
   { label: "Notes", icon: FileText },
   { label: "Goals & insights", icon: Target },
+  { label: "Activity", icon: Activity },
   { label: "Settings", icon: Settings2 },
 ];
 
@@ -111,6 +112,9 @@ export default function Home() {
   const [projects, setProjects] = useState([]);
   const [notes, setNotes] = useState([]);
   const [members, setMembers] = useState([]);
+  const [activityItems, setActivityItems] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState("member");
   const [active, setActive] = useState("Overview");
@@ -157,6 +161,19 @@ export default function Home() {
     setNotes(data.notes || []);
     setMembers(data.members || []);
   }, []);
+
+  useEffect(() => {
+    if (active !== "Activity" || !user) return;
+    let cancelled = false;
+    setActivityLoading(true);
+    setActivityError("");
+    api("/api/workspace").then(data => {
+      if (!cancelled) setActivityItems(data.activity || []);
+    }).catch(error => {
+      if (!cancelled) setActivityError(error.message || "Could not load activity.");
+    }).finally(() => { if (!cancelled) setActivityLoading(false); });
+    return () => { cancelled = true; };
+  }, [active, user]);
 
   useEffect(() => {
     refresh().catch(() => {}).finally(() => setLoading(false));
@@ -891,6 +908,14 @@ export default function Home() {
                 <p style={{marginTop:18,fontSize:12,color:"#9da5a8"}}>This is a dedicated module screen. Only features marked Available are wired to working screens; planned roadmap items are not represented as implemented. The full catalogue remains documented in <code>docs/TOOL_ROADMAP_500.md</code>.</p>
               </>;
             })()}
+          </section>}
+          {active==="Activity" && <section className="panel activity-panel">
+            <div className="panel-heading"><div><h2>Workspace activity</h2><p>A chronological record of task and project changes captured from now on.</p></div><button className="period-select" type="button" onClick={()=>{setActivityLoading(true);api("/api/workspace").then(data=>setActivityItems(data.activity||[])).catch(error=>setActivityError(error.message)).finally(()=>setActivityLoading(false));}}><Activity size={14}/> Refresh</button></div>
+            {activityLoading&&<p className="empty-state">Loading workspace activity…</p>}
+            {activityError&&<p className="activity-error">{activityError}</p>}
+            {!activityLoading&&!activityError&&!activityItems.length&&<div className="activity-empty"><Activity size={25}/><b>No activity recorded yet</b><span>When workspace members create tasks, update task status or manage projects, those changes will appear here.</span></div>}
+            <div className="activity-feed">{activityItems.map(item=><article className="activity-entry" key={item.id}><span className={`activity-entry-icon activity-${item.entity_type}`}>{item.entity_type==="project"?<FolderKanban size={15}/>:<ListTodo size={15}/>}</span><div className="activity-entry-main"><b>{item.actor_name}</b><p>{item.summary}</p><span>{new Date(item.created_at).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})}</span></div><span className="activity-entry-type">{item.entity_type}</span></article>)}</div>
+            <p className="activity-footnote">Activity history starts when this feature is deployed. Earlier changes are not backfilled.</p>
           </section>}
           {active==="Settings" && <><section className="panel"><div className="panel-heading"><div><h2>Workspace settings</h2><p>Your account and plan information.</p></div></div><p><b>Workspace:</b> {workspace?.name}</p><p><b>Account:</b> {user.email}</p><p><b>Plan:</b> {workspace?.plan}</p><p><b>Trial ends:</b> {workspace?.trial_ends_at?new Date(workspace.trial_ends_at).toLocaleDateString():"Not set"}</p><p>Billing is not connected. No payment will be taken in this version.</p></section><section className="panel" style={{marginTop:18}}><div className="panel-heading"><div><h2>Workspace members</h2><p>Manage who can access this workspace. Roles are stored on each membership.</p></div><span className="task-status">{members.length} member{members.length===1?"":"s"}</span></div>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={addWorkspaceMember} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}><input aria-label="Existing member account email" placeholder="Existing DailyManager account email" type="email" required maxLength={254} value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} style={{...inputStyle,flex:"1 1 220px"}}/><select aria-label="New member role" value={memberRole} onChange={e=>setMemberRole(e.target.value)} style={{...inputStyle,width:"auto"}}><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button style={buttonStyle} disabled={busy}>{busy?"Adding…":"Add member"}</button></form>}{members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",gap:12,justifyContent:"space-between",padding:"12px 0",borderTop:"1px solid var(--line, #303538)",flexWrap:"wrap"}}><div><b>{member.name}</b><div style={{fontSize:12,color:"#a9b0b2",marginTop:4}}>{member.email}{String(member.id)===String(workspace?.owner_user_id)?" · Workspace owner":""}</div></div><div style={{display:"flex",gap:8,alignItems:"center"}}>{String(workspace?.owner_user_id)===String(user?.id)&&String(member.id)!==String(user?.id)?<><select aria-label={"Role for "+member.email} value={["admin","member","viewer"].includes(member.role)?member.role:"member"} onChange={e=>updateWorkspaceMember(member,e.target.value)} style={{...inputStyle,width:"auto",minWidth:110}}><option value="admin">Admin</option><option value="member">Member</option><option value="viewer">Viewer</option></select><button className="icon-button" title="Remove member" aria-label={"Remove "+member.email} onClick={()=>removeWorkspaceMember(member)}><Trash2 size={14}/></button></>:<span className="task-status">{member.role||"member"}</span>}</div></div>)}{!members.length&&<p className="empty-state">No workspace members found.</p>}<p style={{fontSize:12,color:"#a9b0b2",marginTop:12}}>Members must already have a DailyManager account. Admin and viewer roles are saved, but fine-grained feature permissions are not yet enforced across every action.</p></section></>}
         </div>
