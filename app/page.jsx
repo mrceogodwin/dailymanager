@@ -315,7 +315,7 @@ export default function Home() {
         method: "POST",
         body: JSON.stringify({ kind: "task_delete", id: task.id }),
       });
-      setTasks(items => items.filter(item => item.id !== task.id));
+      setTasks(items => items.filter(item => String(item.id) !== String(task.id)));
       setNotice("Task deleted.");
       await refresh();
     } catch (error) {
@@ -563,7 +563,7 @@ export default function Home() {
                 <div className="panel-heading"><div><button className="text-action" onClick={()=>setActive("Projects")}><ArrowRight size={13} style={{transform:"rotate(180deg)"}}/> All projects</button><h2 style={{marginTop:9}}>{project.name}</h2><p>{project.description||"Add a description to explain this project's purpose and outcomes."}</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="period-select" onClick={()=>editProject(project)}><Pencil size={13}/> Edit</button><button className="primary-button" onClick={()=>{setSearch("");setDraft({title:"",body:"",description:"",due_at:"",project_id:String(project.id),priority:"medium"});setModal("task");}}><Plus size={14}/> Add task</button></div></div>
                 <div className="stats-grid" style={{marginBottom:0}}>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={17}/></span></div><p>Completion</p><div className="stat-number">{progress}%</div></article>
-                  <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={17}/></span></div><p>Total tasks</p><div className="stat-number">{countedRelated.length}</div></article>
+                  <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={17}/></span></div><p>Tasks counted</p><div className="stat-number">{countedRelated.length}</div></article>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon green"><CheckCircle2 size={17}/></span></div><p>Completed</p><div className="stat-number">{done}</div></article>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Clock size={17}/></span></div><p>Overdue</p><div className="stat-number">{overdue.length}</div></article>
                 </div>
