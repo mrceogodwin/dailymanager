@@ -90,7 +90,12 @@ export async function GET(request) {
       const comments = await query(`SELECT c.id, c.task_id, c.user_id, c.body, c.created_at, c.updated_at, u.name AS author_name, u.email AS author_email
         FROM task_comments c LEFT JOIN app_users u ON u.id::text = c.user_id
         WHERE c.workspace_id = $1 AND c.task_id = $2 ORDER BY c.created_at ASC, c.id ASC LIMIT 200`, [workspaceId, taskId]);
-      return NextResponse.json({ comments: comments.rows });
+      await ensureActivityTable();
+      const history = await query(`SELECT id, actor_name, action, summary, created_at
+        FROM workspace_activity
+        WHERE workspace_id = $1 AND entity_type = 'task' AND entity_id = $2
+        ORDER BY created_at DESC, id DESC LIMIT 100`, [workspaceId, String(taskId)]);
+      return NextResponse.json({ comments: comments.rows, history: history.rows });
     }
     await ensureActivityTable();
     const result = await query(
