@@ -123,8 +123,8 @@ export default function Home() {
     });
   }, [notes, search]);
   const completed = tasks.filter((task) => task.status === "done").length;
-  const openTasks = tasks.length - completed;
-  const plannerTasks = useMemo(() => filteredTasks.filter((task) => task.status !== "done").sort((a, b) => {
+  const openTasks = tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
+  const plannerTasks = useMemo(() => filteredTasks.filter((task) => !["done", "cancelled"].includes(task.status)).sort((a, b) => {
     if (!a.due_at && !b.due_at) return 0;
     if (!a.due_at) return 1;
     if (!b.due_at) return -1;
@@ -133,7 +133,7 @@ export default function Home() {
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
   const overdueTasks = plannerTasks.filter((task) => task.due_at && new Date(task.due_at) < todayStart);
   const dueTodayTasks = plannerTasks.filter((task) => task.due_at && new Date(task.due_at).toDateString() === todayStart.toDateString());
-  const highPriorityTasks = tasks.filter((task) => task.status !== "done" && ["high", "urgent"].includes(task.priority)).length;
+  const highPriorityTasks = tasks.filter((task) => !["done", "cancelled"].includes(task.status) && ["high", "urgent"].includes(task.priority)).length;
 
   async function submitAuth(event) {
     event.preventDefault(); setAuthError(""); setBusy(true);
@@ -354,10 +354,10 @@ export default function Home() {
   const visibleTasks = filteredTasks;
   const filteredTasksByFilter = visibleTasks.filter((task) => {
     if (taskFilter === "done") return task.status === "done";
-    if (taskFilter === "open") return task.status !== "done";
+    if (taskFilter === "open") return !["done", "cancelled"].includes(task.status);
     if (taskFilter === "in_progress") return task.status === "in_progress";
-    if (taskFilter === "overdue") return task.status !== "done" && task.due_at && new Date(task.due_at) < todayStart;
-    if (taskFilter === "priority") return task.status !== "done" && ["high", "urgent"].includes(task.priority);
+    if (taskFilter === "overdue") return !["done", "cancelled"].includes(task.status) && task.due_at && new Date(task.due_at) < todayStart;
+    if (taskFilter === "priority") return !["done", "cancelled"].includes(task.status) && ["high", "urgent"].includes(task.priority);
     return true;
   });
   const sortedTasksByFilter = [...filteredTasksByFilter].sort((a, b) => {
