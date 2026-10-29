@@ -324,3 +324,28 @@
 .app-shell[data-theme="light"] .project-priority-track{background:#eee7df}
 .app-shell[data-theme="light"] .project-upcoming-row{border-top-color:#eee7df}
 @media(max-width:560px){.project-workload-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.project-workload-stats article{padding:10px}.project-workload-stats article b{font-size:20px}.project-priority-row{grid-template-columns:65px minmax(40px,1fr) 20px;gap:7px}}
+
+.activity-panel{display:grid;gap:8px}
+.activity-feed{display:grid}
+.activity-entry{display:flex;align-items:flex-start;gap:12px;padding:15px 2px;border-bottom:1px solid #2b3032;min-width:0}
+.activity-entry-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:10px;background:#2b211f;color:#e57c70}
+.activity-entry-icon.activity-project{background:#29243a;color:#b49ae9}
+.activity-entry-main{display:grid;gap:4px;flex:1;min-width:0}
+.activity-entry-main>b{font-size:12px;color:#f1f2f2}
+.activity-entry-main>p{font-size:12px;color:#c0c7c8;margin:0;overflow-wrap:anywhere}
+.activity-entry-main>span,.activity-entry-type{font-size:10px;color:#8f999b}
+.activity-entry-type{padding:4px 7px;border:1px solid #343b3d;border-radius:99px;text-transform:capitalize}
+.activity-empty{display:grid;justify-items:center;gap:9px;padding:38px 18px;color:#9da6a8;text-align:center}
+.activity-empty svg{color:#d66b61}
+.activity-empty b{font-size:13px;color:#e7e9e9}
+.activity-empty span{max-width:340px;font-size:11px;line-height:1.6}
+.activity-error{padding:12px;border-radius:9px;background:#3a211f;color:#ffb4a9;font-size:12px}
+.activity-footnote{font-size:10px;color:#858f91;margin-top:12px}
+.app-shell[data-theme="light"] .activity-entry{border-bottom-color:#eee7df}
+.app-shell[data-theme="light"] .activity-entry-main>b,.app-shell[data-theme="light"] .activity-empty b{color:#302d2a}
+.app-shell[data-theme="light"] .activity-entry-main>p{color:#625d58}
+.app-shell[data-theme="light"] .activity-entry-main>span,.app-shell[data-theme="light"] .activity-entry-type,.app-shell[data-theme="light"] .activity-empty span,.app-shell[data-theme="light"] .activity-footnote{color:#77716b}
+.app-shell[data-theme="light"] .activity-entry-type{border-color:#e8e1d8}
+.app-shell[data-theme="light"] .activity-entry-icon{background:#f9e9e5;color:#c64b45}
+.app-shell[data-theme="light"] .activity-entry-icon.activity-project{background:#eee9f8;color:#795cb0}
+@media(max-width:560px){.activity-entry{gap:9px}.activity-entry-type{display:none}}
