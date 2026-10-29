@@ -135,8 +135,17 @@ export default function Home() {
   }
 
   async function logout() {
-    try { await api("/api/auth/logout", { method: "POST", body: "{}" }); } catch {}
-    setUser(null); setWorkspace(null); setTasks([]); setProjects([]); setNotes([]); setAuthMode("login");
+    setBusy(true);
+    try {
+      await api("/api/auth/logout", { method: "POST", body: "{}" });
+      setUser(null); setWorkspace(null); setTasks([]); setProjects([]); setNotes([]);
+      setAuthMode("login");
+      setNotice("You have been signed out.");
+    } catch (error) {
+      setNotice(error.message || "Could not sign you out. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveItem(event) {
