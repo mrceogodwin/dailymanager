@@ -14,6 +14,19 @@ async function validateTaskAssignee(assigneeId, workspaceId) {
   return String(assigneeId);
 }
 
+async function ensureTaskCommentsTable() {
+  await query(`CREATE TABLE IF NOT EXISTS task_comments (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query("CREATE INDEX IF NOT EXISTS task_comments_task_created_idx ON task_comments (workspace_id, task_id, created_at ASC, id ASC)");
+}
+
 async function ensureActivityTable() {
   await query(`CREATE TABLE IF NOT EXISTS workspace_activity (
     id BIGSERIAL PRIMARY KEY,
@@ -63,12 +76,22 @@ async function getWorkspace(userId) {
   return result.rows[0]?.id ?? null;
 }
 
-export async function GET() {
+export async function GET(request) {
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
     const workspaceId = await getWorkspace(user.id);
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
+    const taskId = new URL(request.url).searchParams.get("task_id");
+    if (taskId) {
+      await ensureTaskCommentsTable();
+      const task = await query("SELECT id FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
+      if (!task.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      const comments = await query(`SELECT c.id, c.task_id, c.user_id, c.body, c.created_at, c.updated_at, u.name AS author_name, u.email AS author_email
+        FROM task_comments c LEFT JOIN app_users u ON u.id::text = c.user_id
+        WHERE c.workspace_id = $1 AND c.task_id = $2 ORDER BY c.created_at ASC, c.id ASC LIMIT 200`, [workspaceId, taskId]);
+      return NextResponse.json({ comments: comments.rows });
+    }
     await ensureActivityTable();
     const result = await query(
       `SELECT id, actor_id, actor_name, action, entity_type, entity_id, summary, created_at
@@ -114,6 +137,20 @@ export async function POST(request) {
       return { task: task.rows[0] };
     };
     const requireProjectManagement = () => canManageWorkspace ? null : NextResponse.json({ error: "Only workspace owners and admins can manage projects." }, { status: 403 });
+
+    if (body.kind === "task_comment") {
+      const taskId = body.task_id;
+      const comment = typeof body.body === "string" ? body.body.trim() : "";
+      if (!taskId) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
+      if (!comment || comment.length > 5000) return NextResponse.json({ error: "Comment must contain 1–5,000 characters." }, { status: 400 });
+      const task = await query("SELECT id, title FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
+      if (!task.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Viewers cannot post comments." }, { status: 403 });
+      await ensureTaskCommentsTable();
+      const saved = await query("INSERT INTO task_comments (workspace_id, task_id, user_id, body) VALUES ($1, $2, $3, $4) RETURNING id, task_id, user_id, body, created_at, updated_at", [workspaceId, String(user.id), comment]);
+      await recordActivity({ workspaceId, user, action: "commented", entityType: "task", entityId: taskId, summary: `Commented on task “${task.rows[0].title}”.` });
+      return NextResponse.json({ ok: true, comment: { ...saved.rows[0], author_name: user.name || user.email, author_email: user.email } }, { status: 201 });
+    }
 
     if (body.kind === "task") {
       const title = typeof body.title === "string" ? body.title.trim() : "";
