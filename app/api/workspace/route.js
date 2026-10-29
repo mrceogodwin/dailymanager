@@ -4,6 +4,32 @@ import { getSessionUser } from "../../../lib/session";
 
 export const runtime = "nodejs";
 
+async function ensureActivityTable() {
+  await query(`CREATE TABLE IF NOT EXISTS workspace_activity (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id BIGINT NOT NULL,
+    actor_id TEXT,
+    actor_name TEXT NOT NULL DEFAULT 'Workspace member',
+    action TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT,
+    summary TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+}
+async function recordActivity({ workspaceId, user, action, entityType, entityId, summary }) {
+  try {
+    await ensureActivityTable();
+    await query(
+      `INSERT INTO workspace_activity (workspace_id, actor_id, actor_name, action, entity_type, entity_id, summary)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [workspaceId, String(user.id), user.name || user.email || "Workspace member", action, entityType, entityId == null ? null : String(entityId), summary]
+    );
+  } catch (error) {
+    console.error("DailyManager activity log write failed:", error.message);
+  }
+}
+
 async function getWorkspace(userId) {
   const result = await query(
     `SELECT w.id FROM workspaces w
@@ -12,6 +38,26 @@ async function getWorkspace(userId) {
     [userId]
   );
   return result.rows[0]?.id ?? null;
+}
+
+export async function GET() {
+  try {
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
+    const workspaceId = await getWorkspace(user.id);
+    if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
+    await ensureActivityTable();
+    const result = await query(
+      `SELECT id, actor_id, actor_name, action, entity_type, entity_id, summary, created_at
+       FROM workspace_activity WHERE workspace_id = $1
+       ORDER BY created_at DESC, id DESC LIMIT 100`,
+      [workspaceId]
+    );
+    return NextResponse.json({ activity: result.rows });
+  } catch (error) {
+    console.error("DailyManager activity GET error:", error);
+    return NextResponse.json({ error: error.message || "Could not load workspace activity." }, { status: error.status || 500 });
+  }
 }
 
 export async function POST(request) {
@@ -49,6 +95,7 @@ export async function POST(request) {
         "INSERT INTO tasks (workspace_id, project_id, title, description, priority, due_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
         [workspaceId, projectId, title, description, priority, dueAt ? dueAt.toISOString() : null, user.id]
       );
+      await recordActivity({ workspaceId, user, action: "created", entityType: "task", entityId: result.rows[0].id, summary: `Created task “${title}”.` });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
@@ -72,6 +119,7 @@ export async function POST(request) {
         [title, description, dueAt ? dueAt.toISOString() : null, projectId, priority, body.id, workspaceId]
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”.` });
       return NextResponse.json({ ok: true });
     }
 
@@ -91,6 +139,8 @@ export async function POST(request) {
         [body.status, body.id, workspaceId]
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      const statusTask = await query("SELECT title FROM tasks WHERE id = $1 AND workspace_id = $2", [body.id, workspaceId]);
+      await recordActivity({ workspaceId, user, action: "status_changed", entityType: "task", entityId: body.id, summary: `Changed task “${statusTask.rows[0]?.title || "Task"}” to ${body.status.replace("_"," ")}.` });
       return NextResponse.json({ ok: true });
     }
 
@@ -121,6 +171,7 @@ export async function POST(request) {
       if (!name || name.length > 160 || description.length > 2000) return NextResponse.json({ error: "Project name or description is invalid." }, { status: 400 });
       const result = await query("UPDATE projects SET name = $1, description = $2, updated_at = NOW() WHERE id = $3 AND workspace_id = $4 RETURNING id", [name, description, body.id, workspaceId]);
       if (!result.rowCount) return NextResponse.json({ error: "Project not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "updated", entityType: "project", entityId: body.id, summary: `Updated project “${name}”.` });
       return NextResponse.json({ ok: true });
     }
 
@@ -141,6 +192,7 @@ export async function POST(request) {
         "INSERT INTO projects (workspace_id, name, description, created_by) VALUES ($1, $2, $3, $4) RETURNING id",
         [workspaceId, name, description, user.id]
       );
+      await recordActivity({ workspaceId, user, action: "created", entityType: "project", entityId: result.rows[0].id, summary: `Created project “${name}”.` });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
