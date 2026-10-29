@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export async function POST(request) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please submit valid login details." }, { status: 400 }); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
   if (!email || !password) return NextResponse.json({ error: "Enter your email and password." }, { status: 400 });
