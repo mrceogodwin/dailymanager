@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
-  Settings2, Sparkles, Target, X, Star, ChevronRight, Play, Clock, ShieldCheck, ChartNoAxesCombined, Users, Layers, Zap, CheckCircle2, ArrowUpRight, Pencil, Trash2
+  Settings2, Sparkles, Target, X, Star, ChevronRight, Play, Clock, ShieldCheck, ChartNoAxesCombined, Users, Layers, Zap, CheckCircle2, ArrowUpRight, Pencil, Trash2,
+  Inbox, BriefcaseBusiness, CalendarClock, BookOpenText, MessageSquareText, Workflow, BrainCircuit, Timer, ClipboardList, ContactRound, WalletCards, UserRoundCog, KanbanSquare, MonitorCog, Megaphone, TrendingUp, Headset, Files, PlugZap, Focus, Boxes
 } from "lucide-react";
 
 const NAV = [
@@ -60,7 +61,34 @@ const TOOL_CATEGORIES = [
   { name: "Industry & Advanced Workflows", count: 20, status: "Planned", detail: "Configurable workflow packs for specialized teams." },
 ];
 
-const MODULE_NAV = TOOL_CATEGORIES.map((item) => ({ label: item.name, icon: Layers }));
+const MODULE_ICONS = {
+  "Tasks & Work Intake": Inbox,
+  "Projects & Portfolio": BriefcaseBusiness,
+  "Planning & Scheduling": CalendarClock,
+  "Docs & Knowledge": BookOpenText,
+  "Chat & Collaboration": MessageSquareText,
+  "Automation & Workflows": Workflow,
+  "AI Work Assistant": BrainCircuit,
+  "Goals & OKRs": Target,
+  "Time & Capacity": Timer,
+  "Reports & Analytics": ChartNoAxesCombined,
+  "Forms & Requests": ClipboardList,
+  "CRM & Client Work": ContactRound,
+  "Finance & Billing": WalletCards,
+  "People & HR": UserRoundCog,
+  "Product & Agile": KanbanSquare,
+  "Software & IT Ops": MonitorCog,
+  "Marketing & Content": Megaphone,
+  "Sales & Revenue": TrendingUp,
+  "Customer Support": Headset,
+  "Files & Assets": Files,
+  "Security & Governance": ShieldCheck,
+  "Admin & Workspace": Settings2,
+  "Integrations & APIs": PlugZap,
+  "Personal Productivity": Focus,
+  "Industry & Advanced Workflows": Boxes,
+};
+const MODULE_NAV = TOOL_CATEGORIES.map((item) => ({ label: item.name, icon: MODULE_ICONS[item.name] || Layers }));
 const inputStyle = { width: "100%", padding: "12px 13px", borderRadius: 11, border: "1px solid var(--line, #303538)", background: "#101213", color: "var(--text, #f4f2ef)", outline: "none" };
 const buttonStyle = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, border: "1px solid #ff9b73", borderRadius: 11, padding: "11px 15px", background: "linear-gradient(135deg,#ffc09d,#ff754a)", color: "#291109", fontWeight: 800, cursor: "pointer" };
 
