@@ -52,7 +52,15 @@ export async function POST(request) {
       [workspaceResult.rows[0].id, user.id]
     );
     await client.query("COMMIT");
-    await createSession(user.id);
+    try {
+      await createSession(user.id);
+    } catch (sessionError) {
+      console.error("DailyManager account created but session setup failed", sessionError);
+      return NextResponse.json(
+        { error: "Your account was created, but we couldn't sign you in automatically. Please log in with your new account." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
     if (client) {
