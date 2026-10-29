@@ -433,6 +433,7 @@ export default function Home() {
           due_at: task.due_at || null,
           project_id: String(project.id),
           priority: task.priority || "medium",
+          assigned_to: task.assigned_to || null,
         }),
       });
       await refresh();
