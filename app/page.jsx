@@ -98,9 +98,15 @@ export default function Home() {
 
   const filteredTasks = useMemo(() => tasks.filter((task) => {
     const q = search.trim().toLowerCase();
-    return !q || task.title.toLowerCase().includes(q) || (task.project_name || "").toLowerCase().includes(q);
+    const title = typeof task?.title === "string" ? task.title : "";
+    const projectName = typeof task?.project_name === "string" ? task.project_name : "";
+    return !q || title.toLowerCase().includes(q) || projectName.toLowerCase().includes(q);
   }), [tasks, search]);
-  const filteredProjects = useMemo(() => projects.filter((project) => !search.trim() || project.name.toLowerCase().includes(search.trim().toLowerCase())), [projects, search]);
+  const filteredProjects = useMemo(() => projects.filter((project) => {
+    const q = search.trim().toLowerCase();
+    const name = typeof project?.name === "string" ? project.name : "";
+    return !q || name.toLowerCase().includes(q);
+  }), [projects, search]);
   const filteredNotes = useMemo(() => notes.filter((note) => !search.trim() || (note.title || "").toLowerCase().includes(search.trim().toLowerCase()) || (note.body || "").toLowerCase().includes(search.trim().toLowerCase())), [notes, search]);
   const completed = tasks.filter((task) => task.status === "done").length;
   const openTasks = tasks.length - completed;
