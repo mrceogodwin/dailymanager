@@ -280,13 +280,13 @@ export default function Home() {
   async function updateTaskStatus(task, status) {
     if (!["todo", "in_progress", "done", "cancelled"].includes(status)) return;
     const previousStatus = task.status;
-    setTasks((items) => items.map((item) => item.id === task.id ? { ...item, status } : item));
+    setTasks((items) => items.map((item) => String(item.id) === String(task.id) ? { ...item, status } : item));
     try {
       await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "task_status", id: task.id, status }) });
       setNotice(status === "done" ? "Task completed." : status === "in_progress" ? "Task marked in progress." : status === "cancelled" ? "Task cancelled." : "Task reopened.");
       await refresh();
     } catch (error) {
-      setTasks((items) => items.map((item) => item.id === task.id ? { ...item, status: previousStatus } : item));
+      setTasks((items) => items.map((item) => String(item.id) === String(task.id) ? { ...item, status: previousStatus } : item));
       setNotice(error.message);
       await refresh().catch(() => {});
     }
