@@ -18,7 +18,12 @@ export async function POST(request) {
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Please submit valid JSON." }, { status: 400 });
+    }
     const workspaceId = await getWorkspace(user.id);
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
 
