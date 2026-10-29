@@ -260,6 +260,21 @@ export default function Home() {
     }
   }
 
+  function exportProjectReport(project, projectTasks) {
+    const rows = [["Project","Task","Priority","Due date","Status","Description"], ...projectTasks.map(task => [project.name, task.title, task.priority || "medium", task.due_at ? parseDueDate(task.due_at).toISOString().slice(0,10) : "", task.status || "todo", task.description || ""])];
+    const csv = rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(",")).join("\\r\\n");
+    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `dailymanager-${project.name.trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "project"}-report.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotice(`Exported ${projectTasks.length} tasks for ${project.name}.`);
+  }
+
   async function createProjectMilestone(event) {
     event.preventDefault();
     if (!milestoneProjectId) { setNotice("Choose a project for this milestone."); return; }
@@ -740,6 +755,7 @@ export default function Home() {
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Clock size={17}/></span></div><p>Overdue</p><div className="stat-number">{overdue.length}</div></article>
                 </div>
                 <div style={{marginTop:17}}><div className="project-progress-label"><span>Delivery progress</span><b>{done} of {countedRelated.length} complete</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div></div>
+                <div className="project-report-actions"><button type="button" className="project-view-tasks" onClick={()=>exportProjectReport(project,related)}><Files size={14}/> Export project report (CSV)</button><span>Includes every linked task, status, priority and due date.</span></div>
               </section>
               {tasks.some(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)) && <section className="panel">
                 <div className="panel-heading"><div><h2>Unassigned tasks</h2><p>Add existing personal tasks to this project without recreating them.</p></div><span className="task-status">{tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).length} available</span></div>
