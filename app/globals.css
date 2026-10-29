@@ -255,3 +255,24 @@
 .app-shell[data-theme="light"] .bulk-task-footer button{background:#d6534d;color:white}
 .app-shell[data-theme="light"] .theme-switch-row button:focus-visible,.app-shell[data-theme="light"] .nav-item:focus-visible{outline:2px solid #d6534d;outline-offset:2px}
 @media(max-width:760px){.theme-switch-row{padding:12px 7px}}
+
+/* Light skin: workspace surfaces and purposeful icon palette */
+.app-shell[data-theme="light"] .stat-card,.app-shell[data-theme="light"] .panel,.app-shell[data-theme="light"] .insight-card,.app-shell[data-theme="light"] .task-row,.app-shell[data-theme="light"] .note-row,.app-shell[data-theme="light"] .project-card,.app-shell[data-theme="light"] .feature-detail-card,.app-shell[data-theme="light"] .feature-roadmap-note{background:#fffdfa;border-color:#e8e1d8;color:#302d2a}
+.app-shell[data-theme="light"] .panel-heading,.app-shell[data-theme="light"] .task-info b,.app-shell[data-theme="light"] .note-row b,.app-shell[data-theme="light"] .project-grid b{color:#302d2a}
+.app-shell[data-theme="light"] .task-info span,.app-shell[data-theme="light"] .note-meta,.app-shell[data-theme="light"] .stat-note,.app-shell[data-theme="light"] .stat-foot{color:#7b746d}
+.app-shell[data-theme="light"] .task-toolbar,.app-shell[data-theme="light"] .calendar-layout,.app-shell[data-theme="light"] .calendar-grid,.app-shell[data-theme="light"] .task-table-wrap{background:#fffdfa;border-color:#e8e1d8;color:#302d2a}
+.app-shell[data-theme="light"] .calendar-day{background:#faf7f2;border-color:#e9e1d8;color:#49443f}
+.app-shell[data-theme="light"] .calendar-day.selected,.app-shell[data-theme="light"] .calendar-day.today{background:#fbe9e6;border-color:#e5bcb4;color:#a83e39}
+.app-shell[data-theme="light"] .task-status{background:#f2eee8;color:#6d655d;border-color:#e5ddd3}
+.app-shell[data-theme="light"] .feature-detail-icon{background:#f9e9e5;border-color:#edcfc7;color:#c64b45}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(1) svg{color:#d6534d}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(2) svg{color:#c77a36}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(3) svg{color:#438b70}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(4) svg{color:#7b68b8}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(5) svg{color:#b15b80}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(6) svg{color:#4d86a1}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(7) svg{color:#b07a3e}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(8) svg{color:#4b967e}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(9) svg{color:#8c6cb1}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(10) svg{color:#b45c54}
+.app-shell[data-theme="light"] .nav-list .nav-item:nth-child(11) svg{color:#647d9b}
