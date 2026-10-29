@@ -197,3 +197,16 @@
 .feature-template-card>b{font-size:14px}
 .feature-template-card>p{margin:0;color:#aab0b1;font-size:12px;line-height:1.65}
 .feature-template-action{display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:8px;color:#ffb18c;font-size:12px;font-weight:750}
+
+
+/* Bulk task creation workspace */
+.bulk-task-form{display:grid;gap:16px;max-width:760px;padding:18px;border:1px solid #303638;border-radius:15px;background:#151819}
+.bulk-task-form label{display:grid;gap:8px;color:#e8ebeb;font-size:12px;font-weight:750}
+.bulk-task-form textarea,.bulk-task-form select{width:100%;border:1px solid #3b4447;border-radius:10px;background:#101314;color:#f4f5f5;padding:12px;font:inherit;font-size:13px;outline:none}
+.bulk-task-form textarea{min-height:170px;resize:vertical;line-height:1.7}
+.bulk-task-form textarea:focus,.bulk-task-form select:focus{border-color:#ffad8a;box-shadow:0 0 0 3px #ffad8a20}
+.bulk-task-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bulk-task-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#9da6a8;font-size:12px}
+.bulk-task-footer button{border:0;border-radius:10px;padding:11px 16px;background:#ffad8a;color:#211510;font-weight:800;cursor:pointer}
+.bulk-task-footer button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:560px){.bulk-task-options{grid-template-columns:1fr}.bulk-task-footer{align-items:stretch;flex-direction:column}.bulk-task-footer button{width:100%}}
