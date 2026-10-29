@@ -100,7 +100,20 @@ export async function POST(request) {
     await ensureTaskAssignmentColumn();
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     const membership = await query("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, user.id]);
-    if (membership.rows[0]?.role === "viewer") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    const role = membership.rows[0]?.role || "member";
+    const ownerResult = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
+    const isOwner = String(ownerResult.rows[0]?.owner_user_id) === String(user.id);
+    const canManageWorkspace = isOwner || role === "admin";
+    if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    const requireTaskAccess = async (taskId) => {
+      const task = await query("SELECT created_by, assigned_to FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
+      if (!task.rowCount) return { error: NextResponse.json({ error: "Task not found." }, { status: 404 }) };
+      if (!canManageWorkspace && String(task.rows[0].created_by) !== String(user.id) && String(task.rows[0].assigned_to || "") !== String(user.id)) {
+        return { error: NextResponse.json({ error: "You can only change tasks you created or that are assigned to you." }, { status: 403 }) };
+      }
+      return { task: task.rows[0] };
+    };
+    const requireProjectManagement = () => canManageWorkspace ? null : NextResponse.json({ error: "Only workspace owners and admins can manage projects." }, { status: 403 });
 
     if (body.kind === "task") {
       const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -126,6 +139,8 @@ export async function POST(request) {
 
     if (body.kind === "task_update") {
       if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
+      const access = await requireTaskAccess(body.id);
+      if (access.error) return access.error;
       const title = typeof body.title === "string" ? body.title.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
       const priority = ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : null;
@@ -153,6 +168,8 @@ export async function POST(request) {
 
     if (body.kind === "task_delete") {
       if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
+      const access = await requireTaskAccess(body.id);
+      if (access.error) return access.error;
       const result = await query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
       await recordActivity({ workspaceId, user, action: "deleted", entityType: "task", entityId: body.id, summary: `Deleted task “${result.rows[0].title}”.` });
@@ -163,6 +180,8 @@ export async function POST(request) {
       if (!body.id || !["todo", "in_progress", "done", "cancelled"].includes(body.status)) {
         return NextResponse.json({ error: "Invalid task status update." }, { status: 400 });
       }
+      const access = await requireTaskAccess(body.id);
+      if (access.error) return access.error;
       const result = await query(
         "UPDATE tasks SET status = $1, updated_at = NOW() WHERE id = $2 AND workspace_id = $3 RETURNING id",
         [body.status, body.id, workspaceId]
@@ -196,6 +215,8 @@ export async function POST(request) {
     }
 
     if (body.kind === "project_update") {
+      const permissionError = requireProjectManagement();
+      if (permissionError) return permissionError;
       if (!body.id) return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
       const name = typeof body.name === "string" ? body.name.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
@@ -207,6 +228,8 @@ export async function POST(request) {
     }
 
     if (body.kind === "project_delete") {
+      const permissionError = requireProjectManagement();
+      if (permissionError) return permissionError;
       if (!body.id) return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
       const linkedTasks = await query("SELECT id FROM tasks WHERE project_id = $1 AND workspace_id = $2 LIMIT 1", [body.id, workspaceId]);
       if (linkedTasks.rowCount) return NextResponse.json({ error: "Move or unassign this project’s tasks before deleting the project." }, { status: 409 });
@@ -217,6 +240,8 @@ export async function POST(request) {
     }
 
     if (body.kind === "project") {
+      const permissionError = requireProjectManagement();
+      if (permissionError) return permissionError;
       const name = typeof body.name === "string" ? body.name.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
       if (!name || name.length > 160 || description.length > 2000) return NextResponse.json({ error: "Project name or description is invalid." }, { status: 400 });
