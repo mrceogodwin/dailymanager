@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { pool, query } from "../../../../lib/db";
+import { pool } from "../../../../lib/db";
 import { createSession } from "../../../../lib/session";
 import { checkAuthRateLimit } from "../../../../lib/rate-limit";
 
@@ -27,8 +27,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Registration is temporarily unavailable. Please try again." }, { status: error.status || 500 });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
     const existing = await client.query("SELECT id FROM app_users WHERE email = $1 LIMIT 1", [email]);
     if (existing.rowCount) {
@@ -53,11 +54,13 @@ export async function POST(request) {
     await createSession(user.id);
     return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
-    try { await client.query("ROLLBACK"); } catch {}
+    if (client) {
+      try { await client.query("ROLLBACK"); } catch {}
+    }
     console.error("DailyManager registration failed", error);
     if (error.code === "23505") return NextResponse.json({ error: "An account with this email already exists. Please log in." }, { status: 409 });
     return NextResponse.json({ error: "We couldn't create your account. Please try again." }, { status: 500 });
   } finally {
-    client.release();
+    client?.release();
   }
 }
