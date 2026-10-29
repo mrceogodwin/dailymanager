@@ -15,6 +15,7 @@ const NAV = [
   { label: "Projects", icon: FolderKanban },
   { label: "Project portfolio", icon: ChartNoAxesCombined },
   { label: "Planner", icon: CalendarDays },
+  { label: "Calendar", icon: CalendarDays },
   { label: "Notes", icon: FileText },
   { label: "Goals & insights", icon: Target },
   { label: "Settings", icon: Settings2 },
@@ -77,6 +78,8 @@ export default function Home() {
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState("member");
   const [active, setActive] = useState("Overview");
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState("");
@@ -506,6 +509,56 @@ export default function Home() {
           {active==="Projects" && <section className="panel"><div className="panel-heading"><div><h2>Your projects</h2><p>Track progress across the work you're building.</p></div><button className="primary-button" onClick={()=>create("project")}><Plus size={15}/> New project</button></div><div className="project-grid">{filteredProjects.map(p=>{const projectTasks=tasks.filter(t=>String(t.project_id||"")===String(p.id));const projectDone=projectTasks.filter(t=>t.status==="done").length;const progress=projectTasks.length?Math.round(projectDone/projectTasks.length*100):0;return <article key={p.id} className="project-card"><div className="project-card-top"><span className="stat-icon orange"><FolderKanban size={17}/></span><span className="project-status">{p.status||"Active"}</span></div><h3>{p.name}</h3><p>{p.description||"A dedicated space for this project."}</p><div style={{display:"flex",gap:8,marginTop:8}}><button className="icon-button" aria-label={"Edit project "+p.name} title="Edit project" onClick={()=>editProject(p)}><Pencil size={14}/></button><button className="icon-button" aria-label={"Delete project "+p.name} title="Delete project" onClick={()=>deleteProject(p)}><Trash2 size={14}/></button></div><div className="project-progress-label"><span>{projectDone} of {projectTasks.length} tasks complete</span><b>{progress}%</b></div><div className="focus-progress"><span style={{width:`${progress}%`}}/></div><button className="project-view-tasks" onClick={()=>{setSearch(p.name);setActive("My tasks");setTaskFilter("all");}}>View related tasks <ArrowRight size={14}/></button></article>})}</div>{!filteredProjects.length&&<p className="empty-state">Your first project starts here. Create one, then assign tasks to it.</p>}</section>}
           {active==="Notes" && <section className="panel"><div className="panel-heading"><div><h2>Workspace notes</h2><p>Keep decisions and useful ideas close.</p></div><button className="primary-button" onClick={()=>create("note")}><Plus size={15}/> New note</button></div>{filteredNotes.map(n=><article key={n.id} className="task-row note-row"><span className="stat-icon pink"><FileText size={17}/></span><div className="task-info"><b>{n.title}</b><span className="note-preview">{n.body||"No note content yet."}</span><small className="note-meta">{n.updated_at?`Updated ${new Date(n.updated_at).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}`:"Saved note"}</small></div><div style={{display:"flex",gap:6,flexShrink:0}}><button className="icon-button" aria-label={"Edit note "+n.title} title="Edit note" onClick={()=>editNote(n)}><Pencil size={14}/></button><button className="icon-button" aria-label={"Delete note "+n.title} title="Delete note" onClick={()=>deleteNote(n)}><Trash2 size={14}/></button></div></article>)}{!filteredNotes.length&&<p className="empty-state">{notes.length?"No notes match your search. Try a different keyword.":"Your knowledge hub starts with one good note."}</p>}</section>}
           {active==="Planner" && <section className="panel"><div className="panel-heading"><div><h2>Plan your day</h2><p>Tasks are sorted by due date, with overdue work surfaced first.</p></div><button className="primary-button" onClick={()=>create("task")}><Plus size={15}/> Add task</button></div><div className="planner-summary"><article><span>Overdue</span><b>{overdueTasks.length}</b></article><article><span>Due today</span><b>{dueTodayTasks.length}</b></article><article><span>Open tasks</span><b>{plannerTasks.length}</b></article></div>{plannerTasks.map(t=>{const overdue=!!t.due_at&&new Date(t.due_at)<todayStart;const dueToday=!!t.due_at&&new Date(t.due_at).toDateString()===todayStart.toDateString();return <div key={t.id} className="task-row"><CalendarDays size={17}/><div className="task-info"><b>{t.title}</b><span>{t.due_at?new Date(t.due_at).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric",year:"numeric"}):"No due date set"} · {t.priority||"medium"} priority</span></div><span className={"task-status"+(overdue?" planner-overdue":dueToday?" planner-today":"")}>{overdue?"Overdue":dueToday?"Due today":t.due_at?"Upcoming":"Unscheduled"}</span></div>})}{!plannerTasks.length&&<p className="empty-state">Nothing planned yet. Add a task and give it a due date to see it here.</p>}</section>}
+          {active==="Calendar" && <section className="panel">
+            <div className="panel-heading"><div><h2>Calendar</h2><p>See your scheduled work by date. Select a day to review its tasks.</p></div><button className="primary-button" onClick={()=>create("task")}><Plus size={15}/> Add task</button></div>
+            {(() => {
+              const year=calendarMonth.getFullYear();
+              const month=calendarMonth.getMonth();
+              const firstDay=new Date(year,month,1);
+              const startOffset=firstDay.getDay();
+              const daysInMonth=new Date(year,month+1,0).getDate();
+              const cells=Array.from({length:42},(_,index)=>new Date(year,month,1-startOffset+index));
+              const dayKey=(d)=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+              const selectedKey=dayKey(selectedCalendarDate);
+              const scheduled=tasks.filter(t=>t.due_at&&dayKey(new Date(t.due_at))===selectedKey);
+              const openScheduled=scheduled.filter(t=>!["done","cancelled"].includes(t.status));
+              return <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.55fr) minmax(230px,0.85fr)",gap:20,alignItems:"start"}}>
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:16}}>
+                    <div><h3 style={{margin:0,fontSize:18}}>{calendarMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</h3><span style={{fontSize:12,color:"#9da5a8"}}>{tasks.filter(t=>t.due_at&&new Date(t.due_at).getMonth()===month&&new Date(t.due_at).getFullYear()===year).length} scheduled tasks this month</span></div>
+                    <div style={{display:"flex",gap:7}}><button className="icon-button" aria-label="Previous month" onClick={()=>setCalendarMonth(new Date(year,month-1,1))}><ChevronDown size={15} style={{transform:"rotate(90deg)"}}/></button><button className="period-select" onClick={()=>{const now=new Date();setCalendarMonth(new Date(now.getFullYear(),now.getMonth(),1));setSelectedCalendarDate(new Date(now.getFullYear(),now.getMonth(),now.getDate()));}}>Today</button><button className="icon-button" aria-label="Next month" onClick={()=>setCalendarMonth(new Date(year,month+1,1))}><ChevronDown size={15} style={{transform:"rotate(-90deg)"}}/></button></div>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:5}}>
+                    {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(day=><div key={day} style={{textAlign:"center",fontSize:11,color:"#9da5a8",padding:"7px 0"}}>{day}</div>)}
+                    {cells.map((date,index)=>{
+                      const key=dayKey(date);
+                      const dayTasks=tasks.filter(t=>t.due_at&&dayKey(new Date(t.due_at))===key);
+                      const selected=key===selectedKey;
+                      const today=key===dayKey(new Date());
+                      const inMonth=date.getMonth()===month;
+                      return <button key={key} onClick={()=>setSelectedCalendarDate(new Date(date.getFullYear(),date.getMonth(),date.getDate()))} aria-pressed={selected} aria-label={date.toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"})+", "+dayTasks.length+" tasks"} style={{minWidth:0,minHeight:76,padding:"7px 4px",borderRadius:10,border:selected?"1px solid #f39a45":"1px solid "+(today?"#8d653f":"#2b3032"),background:selected?"#35271b":"#151819",color:inMonth?"#f2f3f3":"#687174",textAlign:"left",display:"flex",flexDirection:"column",alignItems:"center",gap:6,cursor:"pointer"}}>
+                        <span style={{fontSize:12,fontWeight:selected||today?700:500}}>{date.getDate()}</span>
+                        {dayTasks.length>0?<span style={{display:"flex",gap:3,alignItems:"center",justifyContent:"center",maxWidth:"100%"}}>{dayTasks.slice(0,3).map((t,i)=><span key={t.id} style={{width:5,height:5,borderRadius:99,background:t.status==="done"?"#80d5a1":t.priority==="urgent"||t.priority==="high"?"#f08c76":"#f2ad67"}}/>)}<span style={{fontSize:9,color:inMonth?"#c6cdcf":"#687174"}}>{dayTasks.length}</span></span>:<span style={{height:12}}/>}
+                      </button>;
+                    })}
+                  </div>
+                  <div style={{display:"flex",gap:12,flexWrap:"wrap",fontSize:11,color:"#aab2b5",marginTop:14}}><span>● Scheduled</span><span style={{color:"#f08c76"}}>● High priority</span><span style={{color:"#80d5a1"}}>● Completed</span></div>
+                </div>
+                <aside style={{border:"1px solid #2d3335",borderRadius:13,padding:15,background:"#121516",minWidth:0}}>
+                  <span style={{fontSize:11,color:"#a9b0b2",textTransform:"uppercase",letterSpacing:".08em"}}>Selected day</span>
+                  <h3 style={{fontSize:18,margin:"7px 0 3px"}}>{selectedCalendarDate.toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"})}</h3>
+                  <p style={{fontSize:12,color:"#9da5a8",margin:"0 0 15px"}}>{openScheduled.length} open · {scheduled.filter(t=>t.status==="done").length} completed</p>
+                  {scheduled.map(t=><article key={t.id} style={{borderTop:"1px solid #2c3234",padding:"12px 0",display:"grid",gap:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",gap:7,alignItems:"start"}}><b style={{fontSize:13,overflowWrap:"anywhere",textDecoration:t.status==="done"?"line-through":"none"}}>{t.title}</b><span style={{fontSize:10,color:t.status==="done"?"#80d5a1":t.priority==="urgent"||t.priority==="high"?"#f08c76":"#d6b27b"}}>{t.status==="done"?"Done":t.priority||"medium"}</span></div>
+                    <span style={{fontSize:11,color:"#9da5a8"}}>{projects.find(p=>String(p.id)===String(t.project_id))?.name||"No project"} · {t.status||"todo"}</span>
+                    <div style={{display:"flex",gap:6}}><button className="icon-button" title="Edit task" aria-label={"Edit "+t.title} onClick={()=>editTask(t)}><Pencil size={13}/></button><button className="icon-button" title="View task list" onClick={()=>{setSearch(t.title);setActive("My tasks");}}> <ArrowRight size={13}/></button></div>
+                  </article>)}
+                  {!scheduled.length&&<p className="empty-state" style={{padding:"18px 0"}}>No tasks scheduled for this day.</p>}
+                  <button className="project-view-tasks" onClick={()=>create("task")}>Create a task <Plus size={14}/></button>
+                </aside>
+              </div>;
+            })()}
+          </section>}
           {active==="Goals & insights" && <><div className="stats-grid"><article className="stat-card"><div className="stat-top"><span className="stat-icon green"><Check size={18}/></span></div><p>Completion rate</p><div className="stat-number">{tasks.length?Math.round(completed/tasks.length*100):0}%</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={18}/></span></div><p>Tasks completed</p><div className="stat-number">{completed}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={18}/></span></div><p>Projects</p><div className="stat-number">{projects.length}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Activity size={18}/></span></div><p>High priority open</p><div className="stat-number">{highPriorityTasks}</div></article></div><section className="panel"><div className="panel-heading"><div><h2>Progress overview</h2><p>A snapshot of the work you've recorded in DailyManager.</p></div></div><div className="insight-progress-copy"><b>{completed} of {tasks.length} tasks completed</b><span>{tasks.length?Math.round(completed/tasks.length*100):0}% complete</span></div><div className="focus-progress"><span style={{width:`${tasks.length?completed/tasks.length*100:0}%`}}/></div><div className="insight-breakdown"><div><span>Still open</span><b>{openTasks}</b></div><div><span>Overdue</span><b>{overdueTasks.length}</b></div><div><span>Due today</span><b>{dueTodayTasks.length}</b></div><div><span>Notes captured</span><b>{notes.length}</b></div></div>{!tasks.length&&<p className="empty-state">Your insights will become more useful as you add and complete tasks.</p>}</section></>}
           {TOOL_CATEGORIES.some(item => item.name === active) && <section className="panel">
             {(() => {
