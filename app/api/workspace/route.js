@@ -153,6 +153,35 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
+    if (["member_add", "member_role", "member_remove"].includes(body.kind)) {
+      const workspaceResult = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
+      if (String(workspaceResult.rows[0]?.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can manage members." }, { status: 403 });
+
+      if (body.kind === "member_add") {
+        const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+        const role = ["admin", "member", "viewer"].includes(body.role) ? body.role : "member";
+        if (!email || email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid account email." }, { status: 400 });
+        const account = await query("SELECT id FROM app_users WHERE LOWER(email) = $1 LIMIT 1", [email]);
+        if (!account.rowCount) return NextResponse.json({ error: "That email does not have a DailyManager account yet." }, { status: 404 });
+        if (String(account.rows[0].id) === String(user.id)) return NextResponse.json({ error: "You are already the workspace owner." }, { status: 409 });
+        const result = await query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (workspace_id, user_id) DO NOTHING RETURNING user_id", [workspaceId, account.rows[0].id, role]);
+        if (!result.rowCount) return NextResponse.json({ error: "That account is already a workspace member." }, { status: 409 });
+        return NextResponse.json({ ok: true }, { status: 201 });
+      }
+
+      if (!body.user_id || String(body.user_id) === String(user.id)) return NextResponse.json({ error: "Choose another workspace member." }, { status: 400 });
+      const member = await query("SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, body.user_id]);
+      if (!member.rowCount) return NextResponse.json({ error: "Workspace member not found." }, { status: 404 });
+      if (body.kind === "member_role") {
+        const role = ["admin", "member", "viewer"].includes(body.role) ? body.role : "";
+        if (!role) return NextResponse.json({ error: "Choose admin, member, or viewer." }, { status: 400 });
+        await query("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3", [role, workspaceId, body.user_id]);
+        return NextResponse.json({ ok: true });
+      }
+      await query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, body.user_id]);
+      return NextResponse.json({ ok: true });
+    }
+
     return NextResponse.json({ error: "Unsupported workspace action." }, { status: 400 });
   } catch (error) {
     console.error("DailyManager workspace action failed", error);
