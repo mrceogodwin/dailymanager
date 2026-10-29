@@ -531,8 +531,8 @@ export default function Home() {
                 const open=linked.filter(t=>!["done","cancelled"].includes(t.status));
                 const overdue= open.filter(t=>t.due_at&&parseDueDate(t.due_at)<todayStart).length;
                 const progress=countedLinked.length?Math.round(done/countedLinked.length*100):0;
-                const health=overdue>0?"Needs attention":linked.length&&progress===100?"Completed":linked.length?"On track":"Not started";
-                const healthColor=overdue>0?"#f0a0a0":linked.length&&progress===100?"#8ed9ab":linked.length?"#e9c27b":"#aab2b6";
+                const health=overdue>0?"Needs attention":countedLinked.length&&progress===100?"Completed":countedLinked.length?"On track":"Not started";
+                const healthColor=overdue>0?"#f0a0a0":countedLinked.length&&progress===100?"#8ed9ab":countedLinked.length?"#e9c27b":"#aab2b6";
                 return <article key={project.id} style={{border:"1px solid #303638",borderRadius:15,padding:17,background:"#121516",display:"grid",gap:13,alignContent:"start"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"start",gap:10}}><span className="stat-icon orange"><FolderKanban size={17}/></span><span className="task-status" style={{color:healthColor,borderColor:healthColor+"55"}}>{health}</span></div>
                   <div><h3 style={{fontSize:16,margin:"0 0 6px",overflowWrap:"anywhere"}}>{project.name}</h3><p style={{fontSize:12,color:"#a9b0b2",lineHeight:1.6,margin:0}}>{project.description||"No project description yet."}</p></div>
