@@ -147,6 +147,8 @@ export default function Home() {
   const [toolSearch, setToolSearch] = useState("");
   const [toolFilter, setToolFilter] = useState("All");
   const [selectedFeature, setSelectedFeature] = useState(null);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dragOverStatus, setDragOverStatus] = useState("");
   const [theme, setTheme] = useState("dark");
   const [milestoneProjectId, setMilestoneProjectId] = useState("");
   const [milestoneTitle, setMilestoneTitle] = useState("");
@@ -477,6 +479,21 @@ export default function Home() {
       setNotice("Member removed.");
       await refresh();
     } catch (error) { setNotice(error.message); }
+  }
+
+  function handleTaskDragStart(event, task) {
+    setDraggingTaskId(String(task.id));
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(task.id));
+  }
+
+  function handleTaskDrop(event, status) {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("text/plain") || draggingTaskId;
+    const task = tasks.find(item => String(item.id) === String(id));
+    setDragOverStatus("");
+    setDraggingTaskId(null);
+    if (task && task.status !== status) updateTaskStatus(task, status);
   }
 
   async function updateTaskStatus(task, status) {
@@ -819,9 +836,9 @@ export default function Home() {
                 {status:"cancelled",title:"Cancelled",description:"No longer proceeding",accent:"#e99a9a"}
               ].map(column=>{
                 const columnTasks=filteredTasks.filter(task=>(task.status||"todo")===column.status);
-                return <section key={column.status} aria-label={column.title+" tasks"} style={{border:"1px solid #303638",borderRadius:14,background:"#111415",padding:12,minHeight:180}}>
+                return <section key={column.status} aria-label={column.title+" tasks"} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect="move";setDragOverStatus(column.status);}} onDragLeave={event=>{if(!event.currentTarget.contains(event.relatedTarget))setDragOverStatus("");}} onDrop={event=>handleTaskDrop(event,column.status)} style={{border:dragOverStatus===column.status?"1px dashed #ff9b73":"1px solid #303638",borderRadius:14,background:dragOverStatus===column.status?"rgba(255,155,115,.09)":"#111415",padding:12,minHeight:180,transition:"border .15s,background .15s"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:4}}><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{width:8,height:8,borderRadius:99,background:column.accent}}/><h3 style={{margin:0,fontSize:14}}>{column.title}</h3></div><span className="task-status">{columnTasks.length}</span></div><p style={{margin:"0 0 12px",fontSize:11,color:"#a9b0b2"}}>{column.description}</p>
-                  <div style={{display:"grid",gap:9}}>{columnTasks.map(task=><article key={task.id} style={{border:"1px solid #343a3d",borderRadius:11,padding:12,background:"#191c1e",display:"grid",gap:9}}>
+                  <div style={{display:"grid",gap:9}}>{columnTasks.map(task=><article key={task.id} draggable onDragStart={event=>handleTaskDragStart(event,task)} onDragEnd={()=>{setDraggingTaskId(null);setDragOverStatus("");}} style={{border:"1px solid #343a3d",borderRadius:11,padding:12,background:"#191c1e",display:"grid",gap:9,cursor:"grab",opacity:draggingTaskId===String(task.id)?.48:1}}>
                     <b style={{fontSize:13,lineHeight:1.45,overflowWrap:"anywhere"}}>{task.title}</b><p style={{margin:0,fontSize:11,color:"#a9b0b2",lineHeight:1.5}}>{task.project_name||"Personal"} · {(task.priority||"medium").toUpperCase()} priority{task.due_at?" · "+parseDueDate(task.due_at).toLocaleDateString():""}</p>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}><select aria-label={"Move "+task.title+" to stage"} value={task.status||"todo"} onChange={e=>updateTaskStatus(task,e.target.value)} style={{...inputStyle,padding:"7px 8px",fontSize:11,flex:"1 1 120px"}}><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Completed</option><option value="cancelled">Cancelled</option></select><button type="button" className="icon-button" aria-label={"Edit "+task.title} title="Edit task" onClick={()=>editTask(task)}><Pencil size={13}/></button></div>
                   </article>)}
@@ -829,7 +846,7 @@ export default function Home() {
                 </section>;
               })}
             </div>
-            <p style={{marginTop:16,fontSize:12,color:"#9da5a8"}}>Changes save to the workspace through the existing task status API. This board currently uses status controls rather than drag-and-drop.</p>
+            <p style={{marginTop:16,fontSize:12,color:"#9da5a8"}}>Drag a task card between columns or use its stage selector. Changes save immediately to your workspace.</p>
           </section>}
           {active==="Task table" && <section className="panel">
             <div className="panel-heading"><div><h2>Task table</h2><p>Scan and update task records in a structured view.</p></div><button className="primary-button" onClick={()=>openTaskComposer()}><Plus size={15}/> New task</button></div>
