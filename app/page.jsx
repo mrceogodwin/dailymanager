@@ -242,7 +242,7 @@ export default function Home() {
 
   async function createBulkTasks(event) {
     event.preventDefault();
-    const titles = [...new Set(bulkTaskLines.split(/\\r?\\n/).map((line) => line.trim()).filter(Boolean))];
+    const titles = [...new Set(bulkTaskLines.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))];
     if (!titles.length) { setNotice("Add at least one task title."); return; }
     if (titles.length > 30) { setNotice("You can create up to 30 tasks at a time."); return; }
     setBusy(true);
@@ -251,7 +251,7 @@ export default function Home() {
       const created = results.filter((result) => result.status === "fulfilled").length;
       const failed = results.length - created;
       await refresh();
-      setBulkTaskLines(results.length === created ? "" : titles.filter((_, index) => results[index].status === "rejected").join("\\n"));
+      setBulkTaskLines(results.length === created ? "" : titles.filter((_, index) => results[index].status === "rejected").join("\n"));
       setNotice(failed ? `${created} tasks created; ${failed} could not be saved. Failed titles remain in the list.` : `${created} tasks created successfully.`);
     } catch (error) { setNotice(error.message || "Could not create these tasks."); }
     finally { setBusy(false); }
@@ -519,9 +519,9 @@ export default function Home() {
             {selectedFeature.name === "Bulk task creator" ? <>
               <div className="feature-detail-card"><div className="feature-detail-icon"><ClipboardList size={22}/></div><div><h3>Create tasks in one go</h3><p>Enter one task per line. Duplicate titles are removed, and each task is saved to your workspace individually.</p></div></div>
               <form onSubmit={createBulkTasks} className="bulk-task-form">
-                <label>Task titles<textarea value={bulkTaskLines} onChange={(event)=>setBulkTaskLines(event.target.value)} rows={8} maxLength={12000} placeholder={"Prepare weekly report\\nFollow up with client\\nReview project timeline"} /></label>
+                <label>Task titles<textarea value={bulkTaskLines} onChange={(event)=>setBulkTaskLines(event.target.value)} rows={8} maxLength={12000} placeholder={"Prepare weekly report\nFollow up with client\nReview project timeline"} /></label>
                 <div className="bulk-task-options"><label>Priority<select value={bulkTaskPriority} onChange={(event)=>setBulkTaskPriority(event.target.value)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label>Project<select value={bulkTaskProject} onChange={(event)=>setBulkTaskProject(event.target.value)}><option value="">Personal / no project</option>{projects.map((project)=><option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div>
-                <div className="bulk-task-footer"><span>{bulkTaskLines.split(/\\r?\\n/).filter((line)=>line.trim()).length} lines · maximum 30 tasks</span><button type="submit" disabled={busy || !bulkTaskLines.trim()}>{busy ? "Creating tasks…" : "Create tasks"}</button></div>
+                <div className="bulk-task-footer"><span>{bulkTaskLines.split(/\r?\n/).filter((line)=>line.trim()).length} lines · maximum 30 tasks</span><button type="submit" disabled={busy || !bulkTaskLines.trim()}>{busy ? "Creating tasks…" : "Create tasks"}</button></div>
               </form>
             </> : selectedFeature.name === "Project Template gallery" ? <>
               <div className="feature-detail-card"><div className="feature-detail-icon"><FolderKanban size={22}/></div><div><h3>Project Template Gallery</h3><p>Choose a project starter to prefill the new-project form. Review the name and description before creating your project.</p></div></div>
