@@ -107,7 +107,9 @@ export default function Home() {
     const q = search.trim().toLowerCase();
     const title = typeof task?.title === "string" ? task.title : "";
     const projectName = typeof task?.project_name === "string" ? task.project_name : "";
-    return !q || title.toLowerCase().includes(q) || projectName.toLowerCase().includes(q);
+    const description = typeof task?.description === "string" ? task.description : "";
+    const priority = typeof task?.priority === "string" ? task.priority : "";
+    return !q || title.toLowerCase().includes(q) || description.toLowerCase().includes(q) || projectName.toLowerCase().includes(q) || priority.toLowerCase().includes(q);
   }), [tasks, search]);
   const filteredProjects = useMemo(() => projects.filter((project) => {
     const q = search.trim().toLowerCase();
