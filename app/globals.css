@@ -294,3 +294,8 @@
 .app-shell[data-theme="light"] .milestone-marker{background:#f9e9e5;border-color:#edcfc7;color:#c64b45}
 .app-shell[data-theme="light"] .milestone-marker.is-done{background:#e7f3ec;border-color:#c8e4d4;color:#38876b}
 @media(max-width:560px){.milestone-row{align-items:flex-start;flex-wrap:wrap}.milestone-row .task-status{margin-left:42px}}
+
+.project-report-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:13px;padding-top:12px;border-top:1px solid #2b3032}
+.project-report-actions>span{font-size:10px;color:#929b9f}
+.app-shell[data-theme="light"] .project-report-actions{border-top-color:#eee7df}
+.app-shell[data-theme="light"] .project-report-actions>span{color:#77716b}
