@@ -164,7 +164,7 @@ export async function POST(request) {
     const ownerResult = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
     const isOwner = String(ownerResult.rows[0]?.owner_user_id) === String(user.id);
     const canManageWorkspace = isOwner || role === "admin";
-    if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    if (role === "viewer" && !isOwner && body.kind !== "notification_read") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
     if (body.kind === "notification_read") {
       await ensureWorkspaceNotificationsTable();
       if (body.id === "all") {
