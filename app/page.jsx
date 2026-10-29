@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp,
+  Activity, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
   Settings2, Sparkles, Target, X, Star, ChevronRight, Play, Clock, ShieldCheck, ChartNoAxesCombined, Users, Layers, Zap, CheckCircle2, ArrowUpRight, Pencil, Trash2
 } from "lucide-react";
@@ -74,6 +74,7 @@ export default function Home() {
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState("member");
   const [active, setActive] = useState("Overview");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState("");
   const [editingTaskId, setEditingTaskId] = useState(null);
@@ -380,12 +381,13 @@ export default function Home() {
   });
   return (
     <main className="app-shell" style={{ minHeight: "100vh" }}>
-      <aside className="sidebar">
+      {mobileMenuOpen && <button className="mobile-menu-backdrop" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)} />}
+      <aside className={`sidebar${mobileMenuOpen ? " mobile-menu-open" : ""}`}>
         <a className="brand" href="#" onClick={e => { e.preventDefault(); setActive("Overview"); }}>
           <span className="brand-mark"><span/><span/><span/><span/></span><span className="brand-name">daily<span>manager</span><small>YOUR DAY, IN CONTROL</small></span>
         </a>
         <div className="workspace-switch"><span className="workspace-avatar">{workspace?.name?.[0] || "D"}</span><span className="workspace-copy"><b>{workspace?.name || "My workspace"}</b><small>{workspace?.plan === "free_trial" ? "Free trial" : workspace?.plan || "Workspace"}</small></span><ChevronDown size={15}/></div>
-        <div className="nav-list">{NAV.map(({label,icon:Icon})=><button key={label} className={`nav-item ${active===label?"active":""}`} onClick={()=>setActive(label)}><Icon size={17} strokeWidth={1.8}/><span>{label}</span></button>)}</div>
+        <div className="nav-list">{NAV.map(({label,icon:Icon})=><button key={label} className={`nav-item ${active===label?"active":""}`} onClick={()=>{setActive(label);setMobileMenuOpen(false);}}><Icon size={17} strokeWidth={1.8}/><span>{label}</span></button>)}</div>
         <div className="sidebar-bottom">
           <div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={17}/></div><b>Make room for more</b><p>Unlock your full potential with DailyManager Pro.</p><button onClick={()=>setNotice("Billing is not connected yet.")}>Explore plans <ArrowRight size={14}/></button></div>
           <button className="nav-item" onClick={()=>setActive("Settings")}><Settings2 size={17}/>Settings</button>
@@ -394,7 +396,7 @@ export default function Home() {
         </div>
       </aside>
       <section className="main-panel">
-        <header className="topbar"><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{active}</b></div><div className="top-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks, descriptions & projects…"/>{search ? <button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch("")} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:0,background:"transparent",color:"inherit",cursor:"pointer",padding:4}}><X size={15}/></button> : <kbd>⌕</kbd>}</div><button className="icon-button" aria-label="Notifications" onClick={()=>setNotice("You're all caught up.")}><Bell size={18}/></button><div className="top-avatar">{user.name.split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</div></div></header>
+        <header className="topbar"><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(value => !value)}><Menu size={20}/></button><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{active}</b></div><div className="top-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks, descriptions & projects…"/>{search ? <button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch("")} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:0,background:"transparent",color:"inherit",cursor:"pointer",padding:4}}><X size={15}/></button> : <kbd>⌕</kbd>}</div><button className="icon-button" aria-label="Notifications" onClick={()=>setNotice("You're all caught up.")}><Bell size={18}/></button><div className="top-avatar">{user.name.split(" ").map(x=>x[0]).join("").slice(0,2).toUpperCase()}</div></div></header>
         <div className="content">
           <div className="welcome-row"><div><div className="eyebrow"><span className="eyebrow-dot"/> YOUR WORKSPACE</div><h1>{heading}<span className="wave">✳</span></h1><p className="subtitle">{active==="Overview"?"A little progress each day adds up to big results.":"Your DailyManager workspace, all in one place."}</p></div><button className="primary-button" onClick={()=>create(active==="Projects"?"project":active==="Notes"?"note":"task")}><Plus size={17}/> {active==="Projects"?"New project":active==="Notes"?"New note":"New task"}</button></div>
           {active==="Overview" && <><div className="focus-banner"><div className="focus-orb"><Sparkles size={21}/></div><div className="focus-text"><span>YOUR DAILY FOCUS</span><b>Make today count, one thing at a time.</b><small>You have {openTasks} tasks left to move your day forward.</small></div><div className="focus-right"><div className="focus-progress"><span style={{width:`${tasks.length?completed/tasks.length*100:0}%`}}/></div><small>{completed} of {tasks.length} completed</small></div><Sparkles className="banner-spark" size={82}/></div><div className="stats-grid"><article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={18}/></span></div><p>Open tasks</p><div className="stat-number">{openTasks}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon green"><Check size={18}/></span></div><p>Completed</p><div className="stat-number">{completed}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={18}/></span></div><p>Active projects</p><div className="stat-number">{projects.length}</div></article><article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><FileText size={18}/></span></div><p>Notes</p><div className="stat-number">{notes.length}</div></article></div></>}
