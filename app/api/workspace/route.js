@@ -29,6 +29,8 @@ export async function POST(request) {
     }
     const workspaceId = await getWorkspace(user.id);
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
+    const membership = await query("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, user.id]);
+    if (membership.rows[0]?.role === "viewer") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
 
     if (body.kind === "task") {
       const title = typeof body.title === "string" ? body.title.trim() : "";
