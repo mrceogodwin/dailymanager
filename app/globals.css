@@ -163,3 +163,15 @@
   .calendar-day{min-height:43px!important;padding:5px 1px!important;border-radius:7px!important}
   .calendar-grid{gap:2px}
 }
+
+
+/* Tool catalogue cards are keyboard-accessible entry points to distinct detail screens. */
+[role="button"][aria-label^="Open "]:hover{border-color:#8f7cff!important;transform:translateY(-1px)}
+[role="button"][aria-label^="Open "]:focus-visible{outline:2px solid #b5a4ff;outline-offset:3px}
+.feature-detail-screen{display:grid;gap:18px}
+.feature-detail-card{display:flex;align-items:flex-start;gap:14px;padding:18px;border:1px solid #30313a;border-radius:14px;background:linear-gradient(145deg,#1a1b24,#121318)}
+.feature-detail-icon{display:grid;place-items:center;flex:0 0 44px;height:44px;border:1px solid #4a4066;border-radius:12px;background:#292238;color:#c3b3ff}
+.feature-detail-card h3{margin:2px 0 8px;font-size:15px}
+.feature-detail-card p,.feature-roadmap-note p{margin:0;color:#a9abb7;line-height:1.7;font-size:12px}
+.feature-roadmap-note{display:grid;justify-items:start;gap:10px;padding:16px;border:1px dashed #41424d;border-radius:12px}
+@media(max-width:720px){.feature-detail-card{padding:14px;gap:11px}.feature-detail-icon{flex-basis:38px;height:38px}}
