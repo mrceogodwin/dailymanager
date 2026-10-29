@@ -42,6 +42,36 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
+    if (body.kind === "task_update") {
+      if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      const description = typeof body.description === "string" ? body.description.trim() : "";
+      const priority = ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : null;
+      const dueAt = body.due_at ? new Date(body.due_at) : null;
+      if (!title || title.length > 500) return NextResponse.json({ error: "Task name is required and must be under 500 characters." }, { status: 400 });
+      if (description.length > 4000) return NextResponse.json({ error: "Task description must be under 4,000 characters." }, { status: 400 });
+      if (!priority) return NextResponse.json({ error: "Choose a valid task priority." }, { status: 400 });
+      if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
+      const projectId = body.project_id || null;
+      if (projectId) {
+        const project = await query("SELECT id FROM projects WHERE id = $1 AND workspace_id = $2", [projectId, workspaceId]);
+        if (!project.rowCount) return NextResponse.json({ error: "Selected project was not found." }, { status: 400 });
+      }
+      const result = await query(
+        "UPDATE tasks SET title = $1, description = $2, due_at = $3, project_id = $4, priority = $5, updated_at = NOW() WHERE id = $6 AND workspace_id = $7 RETURNING id",
+        [title, description, dueAt ? dueAt.toISOString() : null, projectId, priority, body.id, workspaceId]
+      );
+      if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (body.kind === "task_delete") {
+      if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
+      const result = await query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING id", [body.id, workspaceId]);
+      if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      return NextResponse.json({ ok: true });
+    }
+
     if (body.kind === "task_status") {
       if (!body.id || !["todo", "in_progress", "done", "cancelled"].includes(body.status)) {
         return NextResponse.json({ error: "Invalid task status update." }, { status: 400 });
