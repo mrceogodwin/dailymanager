@@ -276,3 +276,21 @@
 .app-shell[data-theme="light"] .nav-list .nav-item:nth-child(9) svg{color:#8c6cb1}
 .app-shell[data-theme="light"] .nav-list .nav-item:nth-child(10) svg{color:#b45c54}
 .app-shell[data-theme="light"] .nav-list .nav-item:nth-child(11) svg{color:#647d9b}
+
+/* Project milestone planner */
+.milestone-list{display:grid;gap:0;border:1px solid #303638;border-radius:13px;overflow:hidden;background:#141718}
+.milestone-row{display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid #292f30;min-width:0}
+.milestone-row:last-child{border-bottom:0}
+.milestone-marker{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:50%;border:1px solid #695047;background:#2b201d;color:#ffad8a}
+.milestone-marker.is-done{background:#1c352d;border-color:#376b55;color:#78c9a4}
+.milestone-copy{display:grid;gap:4px;min-width:0;flex:1}
+.milestone-copy b{font-size:13px;color:#f0f1f1;overflow-wrap:anywhere}
+.milestone-copy span{font-size:11px;color:#9da6a8}
+.milestone-empty{padding:18px;color:#9da6a8;font-size:12px}
+.app-shell[data-theme="light"] .milestone-list{background:#fffdfa;border-color:#e8e1d8}
+.app-shell[data-theme="light"] .milestone-row{border-bottom-color:#eee7df}
+.app-shell[data-theme="light"] .milestone-copy b{color:#302d2a}
+.app-shell[data-theme="light"] .milestone-copy span,.app-shell[data-theme="light"] .milestone-empty{color:#77716b}
+.app-shell[data-theme="light"] .milestone-marker{background:#f9e9e5;border-color:#edcfc7;color:#c64b45}
+.app-shell[data-theme="light"] .milestone-marker.is-done{background:#e7f3ec;border-color:#c8e4d4;color:#38876b}
+@media(max-width:560px){.milestone-row{align-items:flex-start;flex-wrap:wrap}.milestone-row .task-status{margin-left:42px}}
