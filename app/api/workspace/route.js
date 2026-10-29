@@ -4,6 +4,16 @@ import { getSessionUser } from "../../../lib/session";
 
 export const runtime = "nodejs";
 
+async function ensureTaskAssignmentColumn() {
+  await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to TEXT");
+}
+async function validateTaskAssignee(assigneeId, workspaceId) {
+  if (!assigneeId) return null;
+  const member = await query("SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, assigneeId]);
+  if (!member.rowCount) throw Object.assign(new Error("Choose a member of this workspace."), { status: 400 });
+  return String(assigneeId);
+}
+
 async function ensureActivityTable() {
   await query(`CREATE TABLE IF NOT EXISTS workspace_activity (
     id BIGSERIAL PRIMARY KEY,
@@ -87,6 +97,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
     }
     const workspaceId = await getWorkspace(user.id);
+    await ensureTaskAssignmentColumn();
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     const membership = await query("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, user.id]);
     if (membership.rows[0]?.role === "viewer") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
@@ -99,14 +110,15 @@ export async function POST(request) {
       if (!title || title.length > 500) return NextResponse.json({ error: "Task name is required and must be under 500 characters." }, { status: 400 });
       if (description.length > 4000) return NextResponse.json({ error: "Task description must be under 4,000 characters." }, { status: 400 });
       if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
+      const assignedTo = await validateTaskAssignee(body.assigned_to, workspaceId);
       let projectId = body.project_id || null;
       if (projectId) {
         const project = await query("SELECT id FROM projects WHERE id = $1 AND workspace_id = $2", [projectId, workspaceId]);
         if (!project.rowCount) return NextResponse.json({ error: "Selected project was not found." }, { status: 400 });
       }
       const result = await query(
-        "INSERT INTO tasks (workspace_id, project_id, title, description, priority, due_at, created_by) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-        [workspaceId, projectId, title, description, priority, dueAt ? dueAt.toISOString() : null, user.id]
+        "INSERT INTO tasks (workspace_id, project_id, title, description, priority, due_at, created_by, assigned_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+        [workspaceId, projectId, title, description, priority, dueAt ? dueAt.toISOString() : null, user.id, assignedTo]
       );
       await recordActivity({ workspaceId, user, action: "created", entityType: "task", entityId: result.rows[0].id, summary: `Created task “${title}”.` });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
@@ -122,17 +134,18 @@ export async function POST(request) {
       if (description.length > 4000) return NextResponse.json({ error: "Task description must be under 4,000 characters." }, { status: 400 });
       if (!priority) return NextResponse.json({ error: "Choose a valid task priority." }, { status: 400 });
       if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
+      const assignedTo = await validateTaskAssignee(body.assigned_to, workspaceId);
       const projectId = body.project_id || null;
       if (projectId) {
         const project = await query("SELECT id FROM projects WHERE id = $1 AND workspace_id = $2", [projectId, workspaceId]);
         if (!project.rowCount) return NextResponse.json({ error: "Selected project was not found." }, { status: 400 });
       }
       const result = await query(
-        "UPDATE tasks SET title = $1, description = $2, due_at = $3, project_id = $4, priority = $5, updated_at = NOW() WHERE id = $6 AND workspace_id = $7 RETURNING id",
-        [title, description, dueAt ? dueAt.toISOString() : null, projectId, priority, body.id, workspaceId]
+        "UPDATE tasks SET title = $1, description = $2, due_at = $3, project_id = $4, priority = $5, assigned_to = $6, updated_at = NOW() WHERE id = $7 AND workspace_id = $8 RETURNING id",
+        [title, description, dueAt ? dueAt.toISOString() : null, projectId, priority, assignedTo, body.id, workspaceId]
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
-      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”.` });
+      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignedTo ? " and assigned it to a team member" : " and cleared its assignee"}.` });
       return NextResponse.json({ ok: true });
     }
 
