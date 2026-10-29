@@ -106,6 +106,15 @@ export default function Home() {
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
     const handleKeyDown = (event) => {
       if (event.key === "Escape") setMobileMenuOpen(false);
     };
