@@ -23,7 +23,7 @@ export async function GET() {
       query("SELECT id, name, description, status, color FROM projects WHERE workspace_id = $1 ORDER BY updated_at DESC", [workspace.id]),
       query(
         `SELECT t.id, t.title, t.description, t.status, t.priority, t.project_id, t.due_at,
-                p.name AS project_name
+                t.created_at, t.updated_at, p.name AS project_name
            FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
           WHERE t.workspace_id = $1 ORDER BY t.created_at DESC LIMIT 500`,
         [workspace.id]
