@@ -119,7 +119,7 @@ export async function POST(request) {
       const name = typeof body.name === "string" ? body.name.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
       if (!name || name.length > 160 || description.length > 2000) return NextResponse.json({ error: "Project name or description is invalid." }, { status: 400 });
-      const result = await query("UPDATE projects SET name = $1, description = $2 WHERE id = $3 AND workspace_id = $4 RETURNING id", [name, description, body.id, workspaceId]);
+      const result = await query("UPDATE projects SET name = $1, description = $2, updated_at = NOW() WHERE id = $3 AND workspace_id = $4 RETURNING id", [name, description, body.id, workspaceId]);
       if (!result.rowCount) return NextResponse.json({ error: "Project not found." }, { status: 404 });
       return NextResponse.json({ ok: true });
     }
