@@ -19,12 +19,15 @@ export async function GET() {
     const workspace = workspaceResult.rows[0];
     if (!workspace) return NextResponse.json({ error: "No workspace is linked to this account." }, { status: 409 });
 
+    await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to TEXT");
     const [projectsResult, tasksResult, notesResult, membersResult] = await Promise.all([
       query("SELECT id, name, description, status, color FROM projects WHERE workspace_id = $1 ORDER BY updated_at DESC", [workspace.id]),
       query(
         `SELECT t.id, t.title, t.description, t.status, t.priority, t.project_id, t.due_at,
-                t.created_at, t.updated_at, p.name AS project_name
+                t.created_at, t.updated_at, t.assigned_to, p.name AS project_name,
+                assigned_user.name AS assignee_name, assigned_user.email AS assignee_email
            FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
+           LEFT JOIN app_users assigned_user ON assigned_user.id::text = t.assigned_to
           WHERE t.workspace_id = $1 ORDER BY t.created_at DESC LIMIT 500`,
         [workspace.id]
       ),
