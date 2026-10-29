@@ -351,14 +351,14 @@ export default function Home() {
   const create = (kind) => { setDraft({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium" }); setModal(kind); };
   const heading = active === "Overview" ? "Good to see you, " + user.name.split(" ")[0] : active;
   const visibleTasks = filteredTasks;
-  const filteredTasksByFilter = useMemo(() => visibleTasks.filter((task) => {
+  const filteredTasksByFilter = visibleTasks.filter((task) => {
     if (taskFilter === "done") return task.status === "done";
     if (taskFilter === "open") return task.status !== "done";
     if (taskFilter === "in_progress") return task.status === "in_progress";
     if (taskFilter === "overdue") return task.status !== "done" && task.due_at && new Date(task.due_at) < todayStart;
     if (taskFilter === "priority") return task.status !== "done" && ["high", "urgent"].includes(task.priority);
     return true;
-  }), [visibleTasks, taskFilter, todayStart]);
+  });
   return (
     <main className="app-shell" style={{ minHeight: "100vh" }}>
       <aside className="sidebar">
