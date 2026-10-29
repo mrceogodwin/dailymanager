@@ -22,7 +22,7 @@ A premium, responsive workspace for personal productivity: tasks, projects, note
 
 Set `DATABASE_URL` in the deployment environment to the Neon PostgreSQL connection string for the intended database. Keep it server-only; do not use a `NEXT_PUBLIC_` variable for database credentials.
 
-The database must have these tables and the columns used by the route handlers: `app_users`, `app_sessions`, `workspaces`, `workspace_members`, `projects`, `tasks`, `workspace_notes`, and `auth_rate_limits`. The connected Neon project currently contains these tables. Verify the Vercel environment variable points to that same database before testing signup/login.
+The baseline schema is documented in `db/schema.sql`. For a fresh PostgreSQL/Neon database, review that file and apply it with `psql "$DATABASE_URL" -f db/schema.sql`. For an existing database, inspect the current table definitions and column types first: this baseline uses `BIGINT` identity IDs and `CREATE TABLE IF NOT EXISTS` will not repair mismatched existing tables. Never run schema changes against production until you have confirmed the target database and backed up important data. Verify that Vercel's `DATABASE_URL` points to the intended database before testing signup/login.
 
 ## Run locally
 
