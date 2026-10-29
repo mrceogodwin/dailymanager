@@ -448,6 +448,7 @@ export default function Home() {
       due_at: task.due_at ? String(task.due_at).slice(0, 10) : "",
       project_id: task.project_id || "",
       priority: task.priority || "medium",
+      assigned_to: task.assigned_to || "",
     });
     setModal("edit_task");
   }
