@@ -162,7 +162,7 @@ export async function POST(request) {
       if (body.kind === "member_add") {
         const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
         const role = ["admin", "member", "viewer"].includes(body.role) ? body.role : "member";
-        if (!email || email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid account email." }, { status: 400 });
+        if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid account email." }, { status: 400 });
         const account = await query("SELECT id FROM app_users WHERE LOWER(email) = $1 LIMIT 1", [email]);
         if (!account.rowCount) return NextResponse.json({ error: "That email does not have a DailyManager account yet." }, { status: 404 });
         if (String(account.rows[0].id) === String(user.id)) return NextResponse.json({ error: "You are already the workspace owner." }, { status: 409 });
