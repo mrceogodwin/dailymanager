@@ -549,21 +549,22 @@ export default function Home() {
             const project=projects.find(item=>String(item.id)===String(selectedProjectId));
             if(!project) return <section className="panel"><div className="panel-heading"><div><h2>Select a project</h2><p>Open a project from Projects or Project Portfolio to inspect its delivery.</p></div><button className="period-select" onClick={()=>setActive("Projects")}>Back to projects <ArrowRight size={14}/></button></div>{projects.map(item=><button key={item.id} className="task-row" style={{width:"100%",textAlign:"left",background:"transparent",borderLeft:0,borderRight:0,borderBottom:0}} onClick={()=>setSelectedProjectId(item.id)}><span className="stat-icon orange"><FolderKanban size={17}/></span><span className="task-info"><b>{item.name}</b><span>{item.description||"No description yet"}</span></span><ArrowRight size={15}/></button>)}</section>;
             const related=tasks.filter(task=>String(task.project_id||"")===String(project.id));
-            const done=related.filter(task=>task.status==="done").length;
+            const countedRelated=related.filter(task=>task.status!=="cancelled");
+            const done=countedRelated.filter(task=>task.status==="done").length;
             const activeTasks=related.filter(task=>!["done","cancelled"].includes(task.status));
             const overdue=activeTasks.filter(task=>task.due_at&&parseDueDate(task.due_at)<todayStart);
-            const progress=related.length?Math.round(done/related.length*100):0;
+            const progress=countedRelated.length?Math.round(done/countedRelated.length*100):0;
             const statusGroups=[{key:"todo",label:"To do"},{key:"in_progress",label:"In progress"},{key:"done",label:"Completed"},{key:"cancelled",label:"Cancelled"}];
             return <div style={{display:"grid",gap:18}}>
               <section className="panel">
                 <div className="panel-heading"><div><button className="text-action" onClick={()=>setActive("Projects")}><ArrowRight size={13} style={{transform:"rotate(180deg)"}}/> All projects</button><h2 style={{marginTop:9}}>{project.name}</h2><p>{project.description||"Add a description to explain this project's purpose and outcomes."}</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="period-select" onClick={()=>editProject(project)}><Pencil size={13}/> Edit</button><button className="primary-button" onClick={()=>{setSearch("");setDraft({title:"",body:"",description:"",due_at:"",project_id:String(project.id),priority:"medium"});setModal("task");}}><Plus size={14}/> Add task</button></div></div>
                 <div className="stats-grid" style={{marginBottom:0}}>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={17}/></span></div><p>Completion</p><div className="stat-number">{progress}%</div></article>
-                  <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={17}/></span></div><p>Total tasks</p><div className="stat-number">{related.length}</div></article>
+                  <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={17}/></span></div><p>Total tasks</p><div className="stat-number">{countedRelated.length}</div></article>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon green"><CheckCircle2 size={17}/></span></div><p>Completed</p><div className="stat-number">{done}</div></article>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Clock size={17}/></span></div><p>Overdue</p><div className="stat-number">{overdue.length}</div></article>
                 </div>
-                <div style={{marginTop:17}}><div className="project-progress-label"><span>Delivery progress</span><b>{done} of {related.length} complete</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div></div>
+                <div style={{marginTop:17}}><div className="project-progress-label"><span>Delivery progress</span><b>{done} of {countedRelated.length} complete</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div></div>
               </section>
               <section className="panel"><div className="panel-heading"><div><h2>Project tasks</h2><p>Update task status or open a task to edit its details.</p></div><button className="period-select" onClick={()=>{setSearch(project.name);setActive("My tasks");setTaskFilter("all");}}>Open task list <ArrowRight size={14}/></button></div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,220px),1fr))",gap:12}}>
