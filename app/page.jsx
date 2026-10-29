@@ -383,7 +383,7 @@ export default function Home() {
     <main className="app-shell" style={{ minHeight: "100vh" }}>
       {mobileMenuOpen && <button className="mobile-menu-backdrop" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)} />}
       <aside className={`sidebar${mobileMenuOpen ? " mobile-menu-open" : ""}`}>
-        <a className="brand" href="#" onClick={e => { e.preventDefault(); setActive("Overview"); }}>
+        <a className="brand" href="#" onClick={e => { e.preventDefault(); setActive("Overview"); setMobileMenuOpen(false); }}>
           <span className="brand-mark"><span/><span/><span/><span/></span><span className="brand-name">daily<span>manager</span><small>YOUR DAY, IN CONTROL</small></span>
         </a>
         <div className="workspace-switch"><span className="workspace-avatar">{workspace?.name?.[0] || "D"}</span><span className="workspace-copy"><b>{workspace?.name || "My workspace"}</b><small>{workspace?.plan === "free_trial" ? "Free trial" : workspace?.plan || "Workspace"}</small></span><ChevronDown size={15}/></div>
