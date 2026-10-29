@@ -67,3 +67,76 @@
   white-space: nowrap;
   border: 0;
 }
+
+
+/* Responsive application navigation and small-screen layout */
+.mobile-menu-toggle{display:none;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;border:1px solid var(--line);border-radius:11px;background:var(--panel);color:var(--text)}
+.mobile-menu-backdrop{display:none}
+.app-shell,.main-panel,.content{min-width:0}
+.main-panel{flex:1;min-width:0}
+.content>*{min-width:0}
+.panel,.stat-card,.project-card,.note-row,.task-row{min-width:0}
+.task-info,.profile-copy,.workspace-copy{min-width:0}
+.task-info>b,.profile-copy b,.profile-copy small,.workspace-copy b{overflow-wrap:anywhere}
+@media(max-width:720px){
+  .app-shell{display:flex;flex-direction:column;min-height:100dvh;overflow-x:clip}
+  .sidebar{position:fixed;inset:0 auto 0 0;z-index:120;width:min(300px,86vw);height:100dvh;min-height:0;padding:20px 14px 14px;display:flex;flex-direction:column;gap:0;overflow-y:auto;overflow-x:hidden;border-right:1px solid #34313f;border-bottom:0;background:#111218;box-shadow:18px 0 55px #0007;transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility .22s ease}
+  .sidebar.mobile-menu-open{transform:translateX(0);visibility:visible}
+  .sidebar .brand{flex-shrink:0;padding:0 7px 22px}
+  .sidebar .workspace-switch{display:flex;flex-shrink:0;margin-bottom:20px}
+  .sidebar .nav-list{display:flex;flex-direction:column;align-items:stretch;gap:5px;overflow:visible;padding:0;margin:0}
+  .sidebar .nav-item,.sidebar .nav-list .nav-item{display:flex;width:100%;height:44px;flex:0 0 auto;justify-content:flex-start;gap:12px;padding:0 13px;margin:0;border-radius:10px;font-size:13px;text-align:left}
+  .sidebar .nav-item svg{width:18px;height:18px;flex-shrink:0}
+  .sidebar .nav-item span{display:inline;font-size:13px}
+  .sidebar .sidebar-bottom{display:flex;flex-direction:column;gap:7px;margin-top:auto;padding-top:22px}
+  .sidebar .upgrade-card,.sidebar .sidebar-bottom>.nav-item,.sidebar .profile{display:flex}
+  .sidebar .upgrade-card{margin-bottom:10px}
+  .sidebar .profile{margin-top:12px;flex-shrink:0}
+  .mobile-menu-backdrop{display:block;position:fixed;inset:0;z-index:110;width:100%;height:100%;padding:0;border:0;background:rgba(3,4,8,.68);backdrop-filter:blur(2px)}
+  .topbar{position:sticky;top:0;z-index:50;display:flex;gap:9px;height:auto;min-height:62px;padding:10px 13px;background:rgba(13,14,18,.96);backdrop-filter:blur(14px)}
+  .mobile-menu-toggle{display:inline-flex}
+  .breadcrumb{min-width:0;flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:11px}
+  .top-actions{min-width:0;gap:7px}
+  .search-box{width:clamp(90px,32vw,190px);min-width:0}
+  .top-avatar{display:none}
+  .main-panel{width:100%;min-width:0}
+  .content{width:100%;padding:22px 14px 30px}
+  .welcome-row{gap:12px}
+  .welcome-row>div{min-width:0;flex:1}
+  .welcome-row h1{overflow-wrap:anywhere}
+  .welcome-row>.primary-button{flex-shrink:0;white-space:nowrap}
+  .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .lower-grid,.bottom-grid{grid-template-columns:minmax(0,1fr)}
+  .project-grid{grid-template-columns:minmax(0,1fr)}
+  .task-toolbar{overflow:visible}
+  .task-toolbar button{max-width:100%}
+  .panel-heading{gap:10px;align-items:flex-start}
+  .panel-heading>div{min-width:0}
+  .panel-heading>.primary-button{flex-shrink:0}
+  .task-row{align-items:flex-start}
+  .task-row .task-status{max-width:42%;white-space:normal;text-align:right;overflow-wrap:anywhere}
+  .task-modal{width:min(100%,560px);max-height:calc(100dvh - 24px);overflow-y:auto}
+  input,select,textarea{max-width:100%}
+}
+@media(max-width:420px){
+  .topbar{padding:9px 10px;gap:7px}
+  .mobile-menu-toggle{width:35px;height:35px;flex-basis:35px}
+  .breadcrumb{font-size:10px;gap:5px}
+  .top-actions{gap:5px}
+  .search-box{width:clamp(82px,29vw,125px);padding:0 8px}
+  .search-box input{min-width:0;font-size:10px}
+  .content{padding:18px 11px 26px}
+  .welcome-row{gap:8px}
+  .welcome-row h1{font-size:19px}
+  .welcome-row>.primary-button{gap:5px;padding:8px;font-size:10px}
+  .welcome-row>.primary-button svg{width:14px}
+  .stats-grid{gap:8px}
+  .stat-card{min-width:0}
+  .panel{padding:13px 10px}
+  .panel-heading>.primary-button{padding:8px;font-size:10px}
+  .task-toolbar button{font-size:10px;padding:7px 8px}
+  .planner-summary,.insight-breakdown{grid-template-columns:minmax(0,1fr)}
+}
+@media(prefers-reduced-motion:reduce){
+  .sidebar{transition:none}
+}
