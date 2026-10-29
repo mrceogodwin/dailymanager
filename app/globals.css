@@ -148,3 +148,18 @@
     font-size: 16px !important;
   }
 }
+
+
+/* Calendar adapts its month grid and agenda to narrow screens. */
+.calendar-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(230px,.85fr);gap:20px;align-items:start}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.calendar-day{overflow:hidden}
+@media(max-width:720px){
+  .calendar-layout{grid-template-columns:minmax(0,1fr);gap:16px}
+  .calendar-day{min-height:52px!important;padding:6px 2px!important;gap:4px!important}
+  .calendar-grid{gap:3px}
+}
+@media(max-width:420px){
+  .calendar-day{min-height:43px!important;padding:5px 1px!important;border-radius:7px!important}
+  .calendar-grid{gap:2px}
+}
