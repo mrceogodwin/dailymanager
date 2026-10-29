@@ -257,8 +257,15 @@ export default function Home() {
       const date = new Date(`${recurringStart}T12:00:00`);
       if (recurringFrequency === "daily") date.setDate(date.getDate()+index);
       else if (recurringFrequency === "weekly") date.setDate(date.getDate()+index*7);
-      else date.setMonth(date.getMonth()+index);
-      return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
+      else {
+        const originalDay = date.getDate();
+        const targetMonth = date.getMonth()+index;
+        const targetYear = date.getFullYear()+Math.floor(targetMonth/12);
+        const normalizedMonth = ((targetMonth%12)+12)%12;
+        date.setFullYear(targetYear, normalizedMonth, 1);
+        date.setDate(Math.min(originalDay, new Date(targetYear, normalizedMonth+1, 0).getDate()));
+      }
+      return date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0")+"-"+String(date.getDate()).padStart(2,"0");
     });
     setBusy(true);
     try {
