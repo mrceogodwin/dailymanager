@@ -262,8 +262,8 @@ export default function Home() {
 
   function exportProjectReport(project, projectTasks) {
     const rows = [["Project","Task","Priority","Due date","Status","Description"], ...projectTasks.map(task => [project.name, task.title, task.priority || "medium", task.due_at ? parseDueDate(task.due_at).toISOString().slice(0,10) : "", task.status || "todo", task.description || ""])];
-    const csv = rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(",")).join("\\r\\n");
-    const blob = new Blob(["\\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
+    const csv = rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
