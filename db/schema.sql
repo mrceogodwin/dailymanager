@@ -133,6 +133,7 @@ CREATE INDEX IF NOT EXISTS workspace_activity_workspace_created_idx
 CREATE INDEX IF NOT EXISTS workspace_members_user_id_idx ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS projects_workspace_updated_idx ON projects(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS tasks_workspace_created_idx ON tasks(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS tasks_workspace_assigned_to_idx ON tasks(workspace_id, assigned_to) WHERE assigned_to IS NOT NULL;
 CREATE INDEX IF NOT EXISTS tasks_project_id_idx ON tasks(project_id);
 CREATE INDEX IF NOT EXISTS workspace_notes_workspace_updated_idx ON workspace_notes(workspace_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS app_sessions_user_id_idx ON app_sessions(user_id);
