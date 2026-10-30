@@ -816,7 +816,7 @@ export default function Home() {
             <small>{workspace?.plan === "free_trial" ? "Free trial" : workspace?.plan || "Workspace"}</small>
           </span>
           {workspaces.length > 1 ? (
-            <select aria-label="Switch workspace" value={workspace?.id || ""} onChange={switchWorkspace} disabled={busy} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}>
+            <select aria-label="Switch workspace" value={workspace?.id || ""} onChange={switchWorkspace} disabled={busy} style={{ display: "block", width: "100%", marginTop: 7, padding: "7px 9px", borderRadius: 8, border: "1px solid rgba(255,255,255,.14)", background: "#17191a", color: "#f4f2ef", fontSize: 12, outline: "none" }}>
               {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           ) : <ChevronDown size={15}/>}
