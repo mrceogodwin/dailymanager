@@ -719,6 +719,25 @@ export default function Home() {
     if (taskFilter === "priority") return !["done", "cancelled"].includes(task.status) && ["high", "urgent"].includes(task.priority);
     return true;
   });
+  const sortedTasksByFilter = [...filteredTasksByFilter].sort((a, b) => {
+    const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3 };
+    const dueTime = (task) => {
+      if (!task.due_at) return Number.POSITIVE_INFINITY;
+      const parsed = parseDueDate(task.due_at);
+      return Number.isNaN(parsed.getTime()) ? Number.POSITIVE_INFINITY : parsed.getTime();
+    };
+    if (taskSort === "priority") {
+      const priorityDifference = (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4);
+      return priorityDifference || dueTime(a) - dueTime(b) || String(a.title || "").localeCompare(String(b.title || ""));
+    }
+    if (taskSort === "recent") {
+      const aUpdated = new Date(a.updated_at || a.created_at || 0).getTime();
+      const bUpdated = new Date(b.updated_at || b.created_at || 0).getTime();
+      return (Number.isNaN(bUpdated) ? 0 : bUpdated) - (Number.isNaN(aUpdated) ? 0 : aUpdated) || String(a.title || "").localeCompare(String(b.title || ""));
+    }
+    if (taskSort === "title") return String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base", numeric: true });
+    return dueTime(a) - dueTime(b) || (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4) || String(a.title || "").localeCompare(String(b.title || ""));
+  });
   const taskTableRows = sortedTasksByFilter.filter(task =>
     (taskTableStatusFilter === "all" || (task.status || "todo") === taskTableStatusFilter) &&
     (taskTablePriorityFilter === "all" || (task.priority || "medium") === taskTablePriorityFilter) &&
@@ -744,25 +763,7 @@ export default function Home() {
     }
   }
 
-  const sortedTasksByFilter = [...filteredTasksByFilter].sort((a, b) => {
-    const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3 };
-    const dueTime = (task) => {
-      if (!task.due_at) return Number.POSITIVE_INFINITY;
-      const parsed = parseDueDate(task.due_at);
-      return Number.isNaN(parsed.getTime()) ? Number.POSITIVE_INFINITY : parsed.getTime();
-    };
-    if (taskSort === "priority") {
-      const priorityDifference = (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4);
-      return priorityDifference || dueTime(a) - dueTime(b) || String(a.title || "").localeCompare(String(b.title || ""));
-    }
-    if (taskSort === "recent") {
-      const aUpdated = new Date(a.updated_at || a.created_at || 0).getTime();
-      const bUpdated = new Date(b.updated_at || b.created_at || 0).getTime();
-      return (Number.isNaN(bUpdated) ? 0 : bUpdated) - (Number.isNaN(aUpdated) ? 0 : aUpdated) || String(a.title || "").localeCompare(String(b.title || ""));
-    }
-    if (taskSort === "title") return String(a.title || "").localeCompare(String(b.title || ""), undefined, { sensitivity: "base", numeric: true });
-    return dueTime(a) - dueTime(b) || (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4) || String(a.title || "").localeCompare(String(b.title || ""));
-  });
+
   return (
     <main className="app-shell" data-theme={theme} style={{ minHeight: "100vh" }}>
       {mobileMenuOpen && <button className="mobile-menu-backdrop" aria-label="Close navigation menu" onClick={() => setMobileMenuOpen(false)} />}
