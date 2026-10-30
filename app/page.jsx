@@ -1060,8 +1060,8 @@ export default function Home() {
             }).sort((a,b) => b.open-a.open || b.overdue-a.overdue || b.done-a.done || String(a.name||a.email).localeCompare(String(b.name||b.email)));
             const assignedCount = activeTasks.filter(task => task.assigned_to).length;
             const unassignedCount = activeTasks.filter(task => !task.assigned_to).length;
-            const completedCount = activeTasks.filter(task => task.status === "done").length;
-            const overdueCount = activeTasks.filter(task => !["done","cancelled"].includes(task.status) && task.due_at && parseDueDate(task.due_at) < todayStart).length;
+            const completedCount = activeTasks.filter(task => task.status === "done" && task.assigned_to).length;
+            const overdueCount = activeTasks.filter(task => task.assigned_to && !["done","cancelled"].includes(task.status) && task.due_at && parseDueDate(task.due_at) < todayStart).length;
             const teamRate = assignedCount ? Math.round(activeTasks.filter(task => task.status === "done" && task.assigned_to).length / assignedCount * 100) : 0;
             return <div style={{display:"grid",gap:18}}>
               <div className="stats-grid">
