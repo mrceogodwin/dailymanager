@@ -393,8 +393,11 @@ export async function POST(request) {
         await recordActivity({ workspaceId, user, action: "member_role_changed", entityType: "member", entityId: body.user_id, summary: `Changed ${member.rows[0].name || member.rows[0].email} role to ${role}.` });
         return NextResponse.json({ ok: true });
       }
+      const unassigned = await query("UPDATE tasks SET assigned_to = NULL, updated_at = NOW() WHERE workspace_id = $1 AND assigned_to = $2 RETURNING id", [workspaceId, String(body.user_id)]);
       await query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, body.user_id]);
-      await recordActivity({ workspaceId, user, action: "member_removed", entityType: "member", entityId: body.user_id, summary: `Removed ${member.rows[0].name || member.rows[0].email} from the workspace.` });
+      const removedName = member.rows[0].name || member.rows[0].email;
+      await recordActivity({ workspaceId, user, action: "member_removed", entityType: "member", entityId: body.user_id, summary: `Removed ${removedName} from the workspace.` });
+      if (unassigned.rowCount) await recordActivity({ workspaceId, user, action: "assignees_cleared", entityType: "member", entityId: body.user_id, summary: `Cleared ${unassigned.rowCount} task assignment${unassigned.rowCount === 1 ? "" : "s"} previously assigned to ${removedName}.` });
       return NextResponse.json({ ok: true });
     }
 
