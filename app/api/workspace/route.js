@@ -269,6 +269,8 @@ export async function POST(request) {
       if (access.error) return access.error;
       const result = await query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      await ensureTaskCommentsTable();
+      await query("DELETE FROM task_comments WHERE workspace_id = $1 AND task_id = $2", [workspaceId, String(body.id)]);
       await recordActivity({ workspaceId, user, action: "deleted", entityType: "task", entityId: body.id, summary: `Deleted task “${result.rows[0].title}”.` });
       return NextResponse.json({ ok: true });
     }
