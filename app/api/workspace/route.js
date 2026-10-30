@@ -186,6 +186,15 @@ export async function POST(request) {
     };
     const requireProjectManagement = () => canManageWorkspace ? null : NextResponse.json({ error: "Only workspace owners and admins can manage projects." }, { status: 403 });
 
+    const requireNoteAccess = async (noteId) => {
+      const note = await query("SELECT id, created_by FROM workspace_notes WHERE id = $1 AND workspace_id = $2", [noteId, workspaceId]);
+      if (!note.rowCount) return { error: NextResponse.json({ error: "Note not found." }, { status: 404 }) };
+      if (!canManageWorkspace && String(note.rows[0].created_by) !== String(user.id)) {
+        return { error: NextResponse.json({ error: "You can only edit or delete notes you created." }, { status: 403 }) };
+      }
+      return { note: note.rows[0] };
+    };
+
     if (body.kind === "task_comment") {
       const taskId = body.task_id;
       const comment = typeof body.body === "string" ? body.body.trim() : "";
@@ -282,6 +291,8 @@ export async function POST(request) {
 
     if (body.kind === "note_update") {
       if (!body.id) return NextResponse.json({ error: "Note ID is required." }, { status: 400 });
+      const access = await requireNoteAccess(body.id);
+      if (access.error) return access.error;
       const title = typeof body.title === "string" ? body.title.trim() : "";
       const noteBody = typeof body.body === "string" ? body.body : "";
       if (!title || title.length > 200 || noteBody.length > 20000) return NextResponse.json({ error: "Note title or body is invalid." }, { status: 400 });
@@ -296,6 +307,8 @@ export async function POST(request) {
 
     if (body.kind === "note_delete") {
       if (!body.id) return NextResponse.json({ error: "Note ID is required." }, { status: 400 });
+      const access = await requireNoteAccess(body.id);
+      if (access.error) return access.error;
       const note = await query("DELETE FROM workspace_notes WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
       if (!note.rowCount) return NextResponse.json({ error: "Note not found." }, { status: 404 });
       await recordActivity({ workspaceId, user, action: "deleted", entityType: "note", entityId: body.id, summary: `Deleted note “${note.rows[0].title}”.` });
