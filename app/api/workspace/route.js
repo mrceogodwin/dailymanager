@@ -64,7 +64,7 @@ async function ensureActivityTable() {
     summary TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
-  await query(`DO $$    BEGIN
+  await query(`DO $dm$    BEGIN
       IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = current_schema()
@@ -75,7 +75,7 @@ async function ensureActivityTable() {
         ALTER TABLE workspace_activity ALTER COLUMN workspace_id TYPE TEXT USING workspace_id::text;
       END IF;
     END;
-  $`);
+  $dm$);
   await query("CREATE INDEX IF NOT EXISTS workspace_activity_workspace_created_idx ON workspace_activity (workspace_id, created_at DESC, id DESC)");
 }
 async function recordActivity({ workspaceId, user, action, entityType, entityId, summary }) {
