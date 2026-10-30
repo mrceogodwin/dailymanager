@@ -355,3 +355,42 @@
 .member-workload span:last-child{color:#f09a8f;border-color:#62413e}
 .app-shell[data-theme="light"] .member-workload span{background:#f7f3ee;border-color:#e8e1d8;color:#655e58}
 .app-shell[data-theme="light"] .member-workload span:last-child{color:#bd514a;border-color:#efcec8}
+
+
+/* Calendar selected-day actions: keep controls readable in dark mode and on mobile Safari. */
+.project-view-tasks {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 11px 16px;
+  border: 1px solid #b96f4c !important;
+  border-radius: 999px;
+  background: #29211d !important;
+  color: #ffd0b8 !important;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  cursor: pointer;
+  box-shadow: none;
+}
+.project-view-tasks:hover {
+  background: #382820 !important;
+  border-color: #f0a078 !important;
+  color: #fff0e8 !important;
+}
+.project-view-tasks:focus-visible {
+  outline: 2px solid #ffad82;
+  outline-offset: 3px;
+}
+.project-view-tasks:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
