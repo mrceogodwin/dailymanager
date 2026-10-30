@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { query } from "../../../../lib/db";
 import { getSessionUser } from "../../../../lib/session";
+import { getWorkspaceForUser } from "../../../../lib/workspace-context";
 
 export const runtime = "nodejs";
 
@@ -8,15 +9,18 @@ export async function GET() {
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-    const workspaceResult = await query(
-      `SELECT w.id, w.name, w.plan, w.trial_ends_at, w.owner_user_id
-         FROM workspaces w
-         JOIN workspace_members m ON m.workspace_id = w.id
-        WHERE m.user_id = $1
-        ORDER BY w.created_at ASC LIMIT 1`,
-      [user.id]
-    );
-    const workspace = workspaceResult.rows[0];
+    const [workspace, workspacesResult] = await Promise.all([
+      getWorkspaceForUser(user.id),
+      query(
+        `SELECT w.id, w.name, w.plan, w.trial_ends_at, w.owner_user_id, m.role
+           FROM workspaces w
+           JOIN workspace_members m ON m.workspace_id = w.id
+          WHERE m.user_id = $1
+          ORDER BY w.created_at ASC, w.id ASC`,
+        [user.id]
+      ),
+    ]);
+    const workspaces = workspacesResult.rows;
     if (!workspace) return NextResponse.json({ error: "No workspace is linked to this account." }, { status: 409 });
 
     await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to TEXT");
@@ -37,6 +41,7 @@ export async function GET() {
     return NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email },
       workspace,
+      workspaces,
       projects: projectsResult.rows,
       tasks: tasksResult.rows,
       notes: notesResult.rows,
