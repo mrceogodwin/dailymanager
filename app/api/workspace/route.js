@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/session";
+import { getWorkspaceForUser, setActiveWorkspaceForUser } from "../../../lib/workspace-context";
 import { isSameOriginMutation } from "../../../lib/request-security";
 
 export const runtime = "nodejs";
@@ -92,21 +93,12 @@ async function recordActivity({ workspaceId, user, action, entityType, entityId,
   }
 }
 
-async function getWorkspace(userId) {
-  const result = await query(
-    `SELECT w.id FROM workspaces w
-       JOIN workspace_members m ON m.workspace_id = w.id
-      WHERE m.user_id = $1 ORDER BY w.created_at ASC LIMIT 1`,
-    [userId]
-  );
-  return result.rows[0]?.id ?? null;
-}
-
 export async function GET(request) {
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
-    const workspaceId = await getWorkspace(user.id);
+    const activeWorkspace = await getWorkspaceForUser(user.id);
+    const workspaceId = activeWorkspace?.id;
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     const params = new URL(request.url).searchParams;
     if (params.get("notifications") === "1") {
@@ -159,7 +151,12 @@ export async function POST(request) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
     }
-    const workspaceId = await getWorkspace(user.id);
+    if (body.kind === "workspace_switch") {
+      await setActiveWorkspaceForUser(user.id, body.workspace_id);
+      return NextResponse.json({ ok: true });
+    }
+    const activeWorkspace = await getWorkspaceForUser(user.id);
+    const workspaceId = activeWorkspace?.id;
     await ensureTaskAssignmentColumn();
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     const membership = await query("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, user.id]);
