@@ -207,6 +207,9 @@ export async function POST(request) {
       if (!otherWorkspace.rowCount) {
         return NextResponse.json({ error: "Create or join another workspace before deleting your only workspace." }, { status: 409 });
       }
+      await ensureTaskCommentsTable();
+      await ensureWorkspaceNotificationsTable();
+      await ensureActivityTable();
       const deleteClient = await pool.connect();
       try {
         await deleteClient.query("BEGIN");
