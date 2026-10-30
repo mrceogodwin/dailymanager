@@ -193,6 +193,56 @@ export async function POST(request) {
     const isOwner = String(ownerResult.rows[0]?.owner_user_id) === String(user.id);
     const canManageWorkspace = isOwner || role === "admin";
     if (role === "viewer" && !isOwner && body.kind !== "notification_read") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    if (body.kind === "workspace_delete") {
+      if (!isOwner) return NextResponse.json({ error: "Only the workspace owner can delete this workspace." }, { status: 403 });
+      const confirmation = typeof body.confirmation === "string" ? body.confirmation.trim() : "";
+      const workspaceName = String(activeWorkspace?.name || "");
+      if (confirmation !== workspaceName) {
+        return NextResponse.json({ error: "Type the exact workspace name to confirm deletion." }, { status: 400 });
+      }
+      const otherWorkspace = await query(
+        "SELECT w.id FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id WHERE m.user_id = $1 AND w.id <> $2 ORDER BY w.created_at ASC LIMIT 1",
+        [user.id, workspaceId]
+      );
+      if (!otherWorkspace.rowCount) {
+        return NextResponse.json({ error: "Create or join another workspace before deleting your only workspace." }, { status: 409 });
+      }
+      const deleteClient = await pool.connect();
+      try {
+        await deleteClient.query("BEGIN");
+        const locked = await deleteClient.query(
+          "SELECT id, name FROM workspaces WHERE id = $1 AND owner_user_id = $2 FOR UPDATE",
+          [workspaceId, user.id]
+        );
+        if (!locked.rowCount) {
+          await deleteClient.query("ROLLBACK");
+          return NextResponse.json({ error: "Workspace ownership could not be verified." }, { status: 403 });
+        }
+        const otherMembership = await deleteClient.query(
+          "SELECT 1 FROM workspace_members WHERE user_id = $1 AND workspace_id <> $2 LIMIT 1",
+          [user.id, workspaceId]
+        );
+        if (!otherMembership.rowCount) {
+          await deleteClient.query("ROLLBACK");
+          return NextResponse.json({ error: "Create or join another workspace before deleting your only workspace." }, { status: 409 });
+        }
+        await deleteClient.query("DELETE FROM task_comments WHERE workspace_id = $1", [String(workspaceId)]);
+        await deleteClient.query("DELETE FROM workspace_notifications WHERE workspace_id = $1", [String(workspaceId)]);
+        await deleteClient.query("DELETE FROM workspace_activity WHERE workspace_id = $1", [String(workspaceId)]);
+        const deleted = await deleteClient.query("DELETE FROM workspaces WHERE id = $1 AND owner_user_id = $2 RETURNING id", [workspaceId, user.id]);
+        if (!deleted.rowCount) {
+          await deleteClient.query("ROLLBACK");
+          return NextResponse.json({ error: "Workspace could not be deleted." }, { status: 409 });
+        }
+        await deleteClient.query("COMMIT");
+      } catch (error) {
+        try { await deleteClient.query("ROLLBACK"); } catch {}
+        throw error;
+      } finally {
+        deleteClient.release();
+      }
+      return NextResponse.json({ ok: true, deleted_workspace_id: workspaceId });
+    }
     if (body.kind === "workspace_rename") {
       if (!isOwner) return NextResponse.json({ error: "Only the workspace owner can rename this workspace." }, { status: 403 });
       const name = typeof body.name === "string" ? body.name.trim() : "";
