@@ -3,10 +3,12 @@ import bcrypt from "bcryptjs";
 import { query } from "../../../../lib/db";
 import { createSession } from "../../../../lib/session";
 import { checkAuthRateLimit } from "../../../../lib/rate-limit";
+import { isSameOriginMutation } from "../../../../lib/request-security";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: "This request could not be verified. Refresh the page and try again." }, { status: 403 });
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Please submit valid login details." }, { status: 400 }); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
