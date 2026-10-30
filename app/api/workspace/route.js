@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query } from "../../../lib/db";
+import { pool, query } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/session";
 
 export const runtime = "nodejs";
@@ -267,11 +267,26 @@ export async function POST(request) {
       if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
       const access = await requireTaskAccess(body.id);
       if (access.error) return access.error;
-      const result = await query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
-      if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
       await ensureTaskCommentsTable();
-      await query("DELETE FROM task_comments WHERE workspace_id = $1 AND task_id = $2", [workspaceId, String(body.id)]);
-      await recordActivity({ workspaceId, user, action: "deleted", entityType: "task", entityId: body.id, summary: `Deleted task “${result.rows[0].title}”.` });
+      const client = await pool.connect();
+      let deletedTitle;
+      try {
+        await client.query("BEGIN");
+        const result = await client.query("DELETE FROM tasks WHERE id = $1 AND workspace_id = $2 RETURNING title", [body.id, workspaceId]);
+        if (!result.rowCount) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Task not found." }, { status: 404 });
+        }
+        deletedTitle = result.rows[0].title;
+        await client.query("DELETE FROM task_comments WHERE workspace_id = $1 AND task_id = $2", [workspaceId, String(body.id)]);
+        await client.query("COMMIT");
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch {}
+        throw error;
+      } finally {
+        client.release();
+      }
+      await recordActivity({ workspaceId, user, action: "deleted", entityType: "task", entityId: body.id, summary: `Deleted task “${deletedTitle}”.` });
       return NextResponse.json({ ok: true });
     }
 
