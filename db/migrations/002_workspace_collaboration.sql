@@ -58,8 +58,8 @@ BEGIN
     ALTER TABLE workspace_activity
       ALTER COLUMN workspace_id TYPE TEXT USING workspace_id::text;
   END IF;
-END
-$$;
+END;
+$;
 
 CREATE INDEX IF NOT EXISTS workspace_activity_workspace_created_idx
   ON workspace_activity (workspace_id, created_at DESC, id DESC);
