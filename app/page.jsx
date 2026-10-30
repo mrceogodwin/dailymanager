@@ -32,6 +32,13 @@ function parseDueDate(value) {
   return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
+function formatDueDateForExport(value) {
+  if (!value) return "";
+  const parsed = parseDueDate(value);
+  if (!parsed || Number.isNaN(parsed.getTime())) return "";
+  return [parsed.getFullYear(), String(parsed.getMonth() + 1).padStart(2, "0"), String(parsed.getDate()).padStart(2, "0")].join("-");
+}
+
 async function api(url, options = {}) {
   const response = await fetch(url, {
     credentials: "same-origin",
@@ -332,7 +339,7 @@ export default function Home() {
   }
 
   function exportProjectReport(project, projectTasks) {
-    const rows = [["Project","Task","Assignee","Priority","Due date","Status","Description"], ...projectTasks.map(task => [project.name, task.title, task.assignee_name || "Unassigned", task.priority || "medium", task.due_at ? parseDueDate(task.due_at).toISOString().slice(0,10) : "", task.status || "todo", task.description || ""])];
+    const rows = [["Project","Task","Assignee","Priority","Due date","Status","Description"], ...projectTasks.map(task => [project.name, task.title, task.assignee_name || "Unassigned", task.priority || "medium", formatDueDateForExport(task.due_at), task.status || "todo", task.description || ""])];
     const csv = rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(",")).join("\r\n");
     const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
