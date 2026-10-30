@@ -144,6 +144,10 @@ export default function Home() {
   const [annualPreview, setAnnualPreview] = useState(false);
   const [taskFilter, setTaskFilter] = useState("all");
   const [taskSort, setTaskSort] = useState("due");
+  const [taskTableStatusFilter, setTaskTableStatusFilter] = useState("all");
+  const [taskTablePriorityFilter, setTaskTablePriorityFilter] = useState("all");
+  const [taskTableProjectFilter, setTaskTableProjectFilter] = useState("all");
+  const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [toolSearch, setToolSearch] = useState("");
   const [toolFilter, setToolFilter] = useState("All");
   const [selectedFeature, setSelectedFeature] = useState(null);
@@ -714,6 +718,31 @@ export default function Home() {
     if (taskFilter === "priority") return !["done", "cancelled"].includes(task.status) && ["high", "urgent"].includes(task.priority);
     return true;
   });
+  const taskTableRows = sortedTasksByFilter.filter(task =>
+    (taskTableStatusFilter === "all" || (task.status || "todo") === taskTableStatusFilter) &&
+    (taskTablePriorityFilter === "all" || (task.priority || "medium") === taskTablePriorityFilter) &&
+    (taskTableProjectFilter === "all" || (taskTableProjectFilter === "personal" ? !task.project_id : String(task.project_id || "") === taskTableProjectFilter))
+  );
+  const visibleTaskIds = taskTableRows.map(task => String(task.id));
+  const allVisibleTasksSelected = visibleTaskIds.length > 0 && visibleTaskIds.every(id => selectedTaskIds.includes(id));
+
+  async function bulkSetTaskStatus(status) {
+    const chosen = tasks.filter(task => selectedTaskIds.includes(String(task.id)));
+    if (!chosen.length) return;
+    setBusy(true);
+    try {
+      await Promise.all(chosen.map(task => api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "task_status", id: task.id, status }) })));
+      setSelectedTaskIds([]);
+      await refresh();
+      setNotice(`${chosen.length} task${chosen.length === 1 ? "" : "s"} moved to ${status.replace("_", " ")}.`);
+    } catch (error) {
+      setNotice(error.message || "Some task updates could not be saved. Refreshing workspace data.");
+      await refresh().catch(() => {});
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const sortedTasksByFilter = [...filteredTasksByFilter].sort((a, b) => {
     if (taskSort === "priority") {
       const rank = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -850,12 +879,12 @@ export default function Home() {
           </section>}
           {active==="Task table" && <section className="panel">
             <div className="panel-heading"><div><h2>Task table</h2><p>Scan and update task records in a structured view.</p></div><button className="primary-button" onClick={()=>openTaskComposer()}><Plus size={15}/> New task</button></div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",margin:"8px 0 16px"}}><input aria-label="Search task table" placeholder="Search tasks…" value={search} onChange={e=>setSearch(e.target.value)} style={{...inputStyle,flex:"1 1 220px",maxWidth:420}}/><label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a9b0b2"}}>Sort<select aria-label="Sort task table" value={taskSort} onChange={e=>setTaskSort(e.target.value)} style={{...inputStyle,width:"auto",minWidth:145,padding:"9px 10px"}}><option value="due">Due date</option><option value="priority">Priority</option><option value="recent">Recently updated</option><option value="title">Name A–Z</option></select></label><button type="button" className="project-view-tasks" onClick={()=>{const rows=[["Task","Description","Project","Priority","Due date","Status"],...sortedTasksByFilter.map(task=>[task.title,task.description||"",task.project_name||"Personal",task.priority||"medium",task.due_at?parseDueDate(task.due_at).toISOString().slice(0,10):"",task.status||"todo"])];const csv=rows.map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\r\n");const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="dailymanager-tasks.csv";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);setNotice(`Exported ${sortedTasksByFilter.length} tasks.`);}}><Files size={14}/> Export CSV</button></div>
-            <div style={{overflowX:"auto",border:"1px solid #303638",borderRadius:12}}>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",margin:"8px 0 16px"}}><input aria-label="Search task table" placeholder="Search tasks…" value={search} onChange={e=>{setSearch(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,flex:"1 1 220px",maxWidth:420}}/><select aria-label="Filter by status" value={taskTableStatusFilter} onChange={e=>setTaskTableStatusFilter(e.target.value)} style={{...inputStyle,width:"auto",minWidth:125,padding:"9px 10px"}}><option value="all">All statuses</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Completed</option><option value="cancelled">Cancelled</option></select><select aria-label="Filter by priority" value={taskTablePriorityFilter} onChange={e=>setTaskTablePriorityFilter(e.target.value)} style={{...inputStyle,width:"auto",minWidth:125,padding:"9px 10px"}}><option value="all">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><select aria-label="Filter by project" value={taskTableProjectFilter} onChange={e=>setTaskTableProjectFilter(e.target.value)} style={{...inputStyle,width:"auto",minWidth:135,padding:"9px 10px"}}><option value="all">All projects</option><option value="personal">Personal</option>{projects.map(project=><option key={project.id} value={String(project.id)}>{project.name}</option>)}</select><label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a9b0b2"}}>Sort<select aria-label="Sort task table" value={taskSort} onChange={e=>setTaskSort(e.target.value)} style={{...inputStyle,width:"auto",minWidth:145,padding:"9px 10px"}}><option value="due">Due date</option><option value="priority">Priority</option><option value="recent">Recently updated</option><option value="title">Name A–Z</option></select></label><button type="button" className="project-view-tasks" onClick={()=>{const rows=[["Task","Description","Project","Priority","Due date","Status"],...taskTableRows.map(task=>[task.title,task.description||"",task.project_name||"Personal",task.priority||"medium",task.due_at?parseDueDate(task.due_at).toISOString().slice(0,10):"",task.status||"todo"])];const csv=rows.map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\r\n");const blob=new Blob(["\\uFEFF",csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="dailymanager-tasks.csv";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);setNotice(`Exported ${taskTableRows.length} tasks.`);}}><Files size={14}/> Export CSV</button></div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",margin:"0 0 12px",padding:"10px 12px",border:"1px solid #303638",borderRadius:11,background:"#15191a"}}><span style={{fontSize:12,color:"#c1c8ca"}}>{selectedTaskIds.length} selected</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}><button type="button" className="project-view-tasks" disabled={!selectedTaskIds.length||busy} onClick={()=>bulkSetTaskStatus("in_progress")}>Start selected</button><button type="button" className="project-view-tasks" disabled={!selectedTaskIds.length||busy} onClick={()=>bulkSetTaskStatus("done")}>Complete selected</button><button type="button" className="project-view-tasks" disabled={!selectedTaskIds.length||busy} onClick={()=>setSelectedTaskIds([])}>Clear selection</button></div></div><div style={{overflowX:"auto",border:"1px solid #303638",borderRadius:12}}>
               <table style={{width:"100%",borderCollapse:"collapse",minWidth:720,textAlign:"left",fontSize:12}}>
-                <thead><tr style={{background:"#171a1b",color:"#a9b0b2"}}>{["Task","Project","Priority","Due date","Status","Actions"].map(label=><th key={label} scope="col" style={{padding:"12px 13px",fontWeight:700,borderBottom:"1px solid #303638",whiteSpace:"nowrap"}}>{label}</th>)}</tr></thead>
-                <tbody>{sortedTasksByFilter.map(task=><tr key={task.id}>
-                  <td style={{padding:"13px",borderBottom:"1px solid #292e30",maxWidth:250}}><b style={{display:"block",overflowWrap:"anywhere",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</b><span style={{display:"block",marginTop:4,color:"#9da5a8",maxWidth:260,overflowWrap:"anywhere"}}>{task.description||"No description"}</span></td>
+                <thead><tr style={{background:"#171a1b",color:"#a9b0b2"}}><th scope="col" style={{padding:"12px 13px",borderBottom:"1px solid #303638"}}><input type="checkbox" aria-label="Select all visible tasks" checked={allVisibleTasksSelected} onChange={event=>setSelectedTaskIds(ids=>event.target.checked?[...new Set([...ids,...visibleTaskIds])]:ids.filter(id=>!visibleTaskIds.includes(id)))}/></th>{["Task","Project","Priority","Due date","Status","Actions"].map(label=><th key={label} scope="col" style={{padding:"12px 13px",fontWeight:700,borderBottom:"1px solid #303638",whiteSpace:"nowrap"}}>{label}</th>)}</tr></thead>
+                <tbody>{taskTableRows.map(task=><tr key={task.id}>
+                  <td style={{padding:"13px",borderBottom:"1px solid #292e30"}}><input type="checkbox" aria-label={"Select "+task.title} checked={selectedTaskIds.includes(String(task.id))} onChange={event=>setSelectedTaskIds(ids=>event.target.checked?[...new Set([...ids,String(task.id)])]:ids.filter(id=>id!==String(task.id)))}/></td><td style={{padding:"13px",borderBottom:"1px solid #292e30",maxWidth:250}}><b style={{display:"block",overflowWrap:"anywhere",textDecoration:task.status==="done"?"line-through":"none"}}>{task.title}</b><span style={{display:"block",marginTop:4,color:"#9da5a8",maxWidth:260,overflowWrap:"anywhere"}}>{task.description||"No description"}</span></td>
                   <td style={{padding:"13px",borderBottom:"1px solid #292e30"}}>{task.project_name||"Personal"}</td>
                   <td style={{padding:"13px",borderBottom:"1px solid #292e30",textTransform:"capitalize"}}>{task.priority||"medium"}</td>
                   <td style={{padding:"13px",borderBottom:"1px solid #292e30",whiteSpace:"nowrap"}}>{task.due_at?parseDueDate(task.due_at).toLocaleDateString():"—"}</td>
@@ -864,8 +893,8 @@ export default function Home() {
                 </tr>)}</tbody>
               </table>
             </div>
-            {!sortedTasksByFilter.length&&<p className="empty-state">No task records match your search. Create a task or clear the search.</p>}
-            <p style={{marginTop:14,fontSize:12,color:"#9da5a8"}}>{sortedTasksByFilter.length} task record{sortedTasksByFilter.length===1?"":"s"} shown. Status changes save through the workspace API.</p>
+            {!taskTableRows.length&&<p className="empty-state">No task records match these filters. Adjust the filters or create a task.</p>}
+            <p style={{marginTop:14,fontSize:12,color:"#9da5a8"}}>{taskTableRows.length} task record{taskTableRows.length===1?"":"s"} shown. Select multiple rows to update their status together.</p>
           </section>}
           {active==="Project portfolio" && <section className="panel">
             <div className="panel-heading"><div><h2>Project portfolio</h2><p>A portfolio-level view of delivery, workload, and project health.</p></div><button className="primary-button" onClick={()=>create("project")}><Plus size={15}/> New project</button></div>
