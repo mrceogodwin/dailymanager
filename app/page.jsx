@@ -120,6 +120,7 @@ export default function Home() {
   const [memberRole, setMemberRole] = useState("member");
   const [active, setActive] = useState("Overview");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [calendarView, setCalendarView] = useState("month");
   const [selectedProjectId, setSelectedProjectId] = useState(null);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1005,7 +1006,7 @@ export default function Home() {
               const firstDay=new Date(year,month,1);
               const startOffset=firstDay.getDay();
               const daysInMonth=new Date(year,month+1,0).getDate();
-              const cells=Array.from({length:42},(_,index)=>new Date(year,month,1-startOffset+index));
+              const weekStart=new Date(selectedCalendarDate);weekStart.setDate(weekStart.getDate()-weekStart.getDay());const cells=calendarView==="week"?Array.from({length:7},(_,index)=>new Date(weekStart.getFullYear(),weekStart.getMonth(),weekStart.getDate()+index)):Array.from({length:42},(_,index)=>new Date(year,month,1-startOffset+index));
               const dayKey=(d)=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
               const selectedKey=dayKey(selectedCalendarDate);
               const scheduled=tasks.filter(t=>t.due_at&&dayKey(parseDueDate(t.due_at))===selectedKey);
@@ -1013,10 +1014,10 @@ export default function Home() {
               return <div className="calendar-layout">
                 <div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:16}}>
-                    <div><h3 style={{margin:0,fontSize:18}}>{calendarMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</h3><span style={{fontSize:12,color:"#9da5a8"}}>{tasks.filter(t=>t.due_at&&parseDueDate(t.due_at).getMonth()===month&&parseDueDate(t.due_at).getFullYear()===year).length} scheduled tasks this month</span></div>
-                    <div style={{display:"flex",gap:7}}><button className="icon-button" aria-label="Previous month" onClick={()=>setCalendarMonth(new Date(year,month-1,1))}><ChevronDown size={15} style={{transform:"rotate(90deg)"}}/></button><button className="period-select" onClick={()=>{const now=new Date();setCalendarMonth(new Date(now.getFullYear(),now.getMonth(),1));setSelectedCalendarDate(new Date(now.getFullYear(),now.getMonth(),now.getDate()));}}>Today</button><button className="icon-button" aria-label="Next month" onClick={()=>setCalendarMonth(new Date(year,month+1,1))}><ChevronDown size={15} style={{transform:"rotate(-90deg)"}}/></button></div>
+                    <div><h3 style={{margin:0,fontSize:18}}>{calendarView==="week" ? cells[0].toLocaleDateString(undefined,{month:"short",day:"numeric"})+" – "+cells[6].toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : calendarMonth.toLocaleDateString(undefined,{month:"long",year:"numeric"})}</h3><span style={{fontSize:12,color:"#9da5a8"}}>{tasks.filter(t=>t.due_at&&parseDueDate(t.due_at).getMonth()===month&&parseDueDate(t.due_at).getFullYear()===year).length} scheduled tasks this month</span></div>
+                    <div style={{display:"flex",gap:7,flexWrap:"wrap",justifyContent:"end"}}><div style={{display:"flex",gap:4,padding:3,border:"1px solid #303638",borderRadius:9}}><button type="button" className="period-select" aria-pressed={calendarView==="month"} onClick={()=>setCalendarView("month")} style={{background:calendarView==="month"?"#303638":"transparent"}}>Month</button><button type="button" className="period-select" aria-pressed={calendarView==="week"} onClick={()=>setCalendarView("week")} style={{background:calendarView==="week"?"#303638":"transparent"}}>Week</button></div><button className="icon-button" aria-label={calendarView==="week"?"Previous week":"Previous month"} onClick={()=>calendarView==="week"?setSelectedCalendarDate(d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()-7)):setCalendarMonth(new Date(year,month-1,1))}><ChevronDown size={15} style={{transform:"rotate(90deg)"}}/></button><button className="period-select" onClick={()=>{const now=new Date();setCalendarMonth(new Date(now.getFullYear(),now.getMonth(),1));setSelectedCalendarDate(new Date(now.getFullYear(),now.getMonth(),now.getDate()));}}>Today</button><button className="icon-button" aria-label={calendarView==="week"?"Next week":"Next month"} onClick={()=>calendarView==="week"?setSelectedCalendarDate(d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()+7)):setCalendarMonth(new Date(year,month+1,1))}><ChevronDown size={15} style={{transform:"rotate(-90deg)"}}/></button></div>
                   </div>
-                  <div className="calendar-grid">
+                  <div className="calendar-grid" style={calendarView==="week"?{gridTemplateRows:"auto",alignItems:"stretch"}:undefined}>
                     {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(day=><div key={day} style={{textAlign:"center",fontSize:11,color:"#9da5a8",padding:"7px 0"}}>{day}</div>)}
                     {cells.map((date,index)=>{
                       const key=dayKey(date);
@@ -1042,7 +1043,7 @@ export default function Home() {
                     <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}><select aria-label={"Status for "+t.title} value={t.status||"todo"} onChange={e=>updateTaskStatus(t,e.target.value)} className="period-select" style={{maxWidth:130}}><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Completed</option><option value="cancelled">Cancelled</option></select><button className="icon-button" title="Edit task" aria-label={"Edit "+t.title} onClick={()=>editTask(t)}><Pencil size={13}/></button><button className="icon-button" title="View task list" aria-label={"Find "+t.title+" in tasks"} onClick={()=>{setSearch(t.title);setActive("My tasks");}}> <ArrowRight size={13}/></button></div>
                   </article>)}
                   {!scheduled.length&&<p className="empty-state" style={{padding:"18px 0"}}>No tasks scheduled for this day.</p>}
-                  <button className="project-view-tasks" onClick={()=>createTaskForDate(selectedCalendarDate)}>Create a task for this day <Plus size={14}/></button>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:10}}><button className="project-view-tasks" onClick={()=>createTaskForDate(selectedCalendarDate)}>Create a task for this day <Plus size={14}/></button><button className="project-view-tasks" onClick={()=>{setTaskFilter("unscheduled");setSearch("");setActive("My tasks");}}>View unscheduled tasks <ArrowRight size={14}/></button></div>
                 </aside>
               </div>;
             })()}
