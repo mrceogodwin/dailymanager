@@ -228,7 +228,7 @@ export async function POST(request) {
         [workspaceId, projectId, title, description, priority, dueAt ? dueAt.toISOString() : null, user.id, assignedTo]
       );
       await recordActivity({ workspaceId, user, action: "created", entityType: "task", entityId: result.rows[0].id, summary: `Created task “${title}”.` });
-      if (assignedTo) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "New task assigned", body: `You were assigned “${title}”.`, entityType: "task", entityId: result.rows[0].id });
+      if (assignedTo && String(assignedTo) !== String(user.id)) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "New task assigned", body: `You were assigned “${title}”.`, entityType: "task", entityId: result.rows[0].id });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
     }
 
@@ -259,7 +259,7 @@ export async function POST(request) {
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
       await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignedTo ? ` and assigned it to ${assigneeLabel || "a team member"}` : " and cleared its assignee"}.` });
-      if (assignedTo && String(assignedTo) !== String(previousAssignee || "")) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "Task assigned to you", body: `You were assigned “${title}”.`, entityType: "task", entityId: body.id });
+      if (assignedTo && String(assignedTo) !== String(user.id) && String(assignedTo) !== String(previousAssignee || "")) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "Task assigned to you", body: `You were assigned “${title}”.`, entityType: "task", entityId: body.id });
       return NextResponse.json({ ok: true });
     }
 
