@@ -394,3 +394,14 @@
   opacity: .55;
   cursor: not-allowed;
 }
+
+.app-shell[data-theme="light"] .project-view-tasks {
+  background: #fae8df !important;
+  border-color: #df9a7d !important;
+  color: #853f31 !important;
+}
+.app-shell[data-theme="light"] .project-view-tasks:hover {
+  background: #f5d9cc !important;
+  border-color: #c9785e !important;
+  color: #6d3025 !important;
+}
