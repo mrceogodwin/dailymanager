@@ -118,6 +118,25 @@
   .task-modal{width:min(100%,560px);max-height:calc(100dvh - 24px);overflow-y:auto}
   input,select,textarea{max-width:100%}
 }
+/* Small-screen usability: prevent action rows and dense tables from clipping. */
+@media(max-width:720px){
+  .task-table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .task-table-wrap table{min-width:620px}
+  .task-toolbar{display:flex;flex-wrap:nowrap;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:2px 1px 12px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+  .task-toolbar button{flex:0 0 auto;min-height:40px;white-space:nowrap}
+  .panel-heading{flex-wrap:wrap}
+  .panel-heading>.primary-button{flex:0 1 auto;white-space:normal}
+  .welcome-row{flex-wrap:wrap}
+  .welcome-row>.primary-button{white-space:normal;max-width:100%}
+  .calendar-layout,.calendar-layout>*{min-width:0}
+  .calendar-day{min-width:0}
+  .project-report-actions{align-items:flex-start}
+}
+@media(max-width:390px){
+  .task-toolbar button{padding:8px 10px}
+  .panel-heading>.primary-button{max-width:100%}
+  .welcome-row>.primary-button{flex-shrink:1}
+}
 @media(max-width:420px){
   .topbar{padding:9px 10px;gap:7px}
   .mobile-menu-toggle{width:35px;height:35px;flex-basis:35px}
