@@ -11,7 +11,7 @@ export default function Error({ error, reset }) {
   return (
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "#0d0e12", color: "#f4f4f7", fontFamily: "Arial, sans-serif" }}>
       <section style={{ width: "100%", maxWidth: 440, padding: 28, border: "1px solid #34343d", borderRadius: 18, background: "#17181f", textAlign: "center", boxShadow: "0 24px 80px #0007" }}>
-        <div style={{ width: 48, height: 48, margin: "0 auto 16px", display: "grid", placeItems: "center", borderRadius: 14, background: "#382522", color: "#ffad91 }}>
+        <div style={{ width: 48, height: 48, margin: "0 auto 16px", display: "grid", placeItems: "center", borderRadius: 14, background: "#382522", color: "#ffad91" }}>
           <AlertTriangle size={23} />
         </div>
         <h1 style={{ margin: "0 0 9px", fontSize: 21 }}>This page hit a problem</h1>
