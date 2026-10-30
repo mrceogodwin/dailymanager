@@ -264,6 +264,47 @@
 .app-shell[data-theme="light"] .calendar-day{background:#faf7f2;border-color:#e9e1d8;color:#49443f}
 .app-shell[data-theme="light"] .calendar-day.selected,.app-shell[data-theme="light"] .calendar-day.today{background:#fbe9e6;border-color:#e5bcb4;color:#a83e39}
 .app-shell[data-theme="light"] .task-status{background:#f2eee8;color:#6d655d;border-color:#e5ddd3}
+
+/* Consistent contrast for interactive task and calendar controls in light appearance. */
+.app-shell[data-theme="light"] .task-toolbar {
+  border-bottom-color: #e8e1d8;
+}
+.app-shell[data-theme="light"] .task-toolbar button {
+  background: #f7f3ee;
+  border-color: #e3dbd1;
+  color: #655d56;
+}
+.app-shell[data-theme="light"] .task-toolbar button.selected {
+  background: #fbe9e6;
+  border-color: #dfaaa0;
+  color: #963e38;
+}
+.app-shell[data-theme="light"] .task-toolbar button:hover {
+  border-color: #cf8174;
+  color: #873b34;
+}
+.app-shell[data-theme="light"] .period-select {
+  background: #fffdfa;
+  border-color: #e3dbd1;
+  color: #514b46;
+}
+.app-shell[data-theme="light"] .icon-button {
+  background: #f7f4ef;
+  border-color: #e4ddd4;
+  color: #655f59;
+}
+.app-shell[data-theme="light"] .icon-button:hover {
+  background: #f0e8df;
+  border-color: #d8c8b9;
+  color: #302d2a;
+}
+.app-shell[data-theme="light"] .calendar-day:focus-visible,
+.app-shell[data-theme="light"] .task-toolbar button:focus-visible,
+.app-shell[data-theme="light"] .icon-button:focus-visible,
+.app-shell[data-theme="light"] .period-select:focus-visible {
+  outline: 2px solid #c85c50;
+  outline-offset: 2px;
+}
 .app-shell[data-theme="light"] .feature-detail-icon{background:#f9e9e5;border-color:#edcfc7;color:#c64b45}
 .app-shell[data-theme="light"] .nav-list .nav-item:nth-child(1) svg{color:#d6534d}
 .app-shell[data-theme="light"] .nav-list .nav-item:nth-child(2) svg{color:#c77a36}
