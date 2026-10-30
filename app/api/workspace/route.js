@@ -151,6 +151,34 @@ export async function POST(request) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Request body must be a JSON object." }, { status: 400 });
     }
+    if (body.kind === "workspace_create") {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (name.length < 2 || name.length > 100) {
+        return NextResponse.json({ error: "Workspace name must be between 2 and 100 characters." }, { status: 400 });
+      }
+      const createClient = await pool.connect();
+      let createdWorkspaceId;
+      try {
+        await createClient.query("BEGIN");
+        const created = await createClient.query(
+          "INSERT INTO workspaces (name, owner_user_id) VALUES ($1, $2) RETURNING id",
+          [name, user.id]
+        );
+        createdWorkspaceId = created.rows[0].id;
+        await createClient.query(
+          "INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')",
+          [createdWorkspaceId, user.id]
+        );
+        await createClient.query("COMMIT");
+      } catch (error) {
+        try { await createClient.query("ROLLBACK"); } catch {}
+        throw error;
+      } finally {
+        createClient.release();
+      }
+      await setActiveWorkspaceForUser(user.id, createdWorkspaceId);
+      return NextResponse.json({ ok: true, workspace_id: createdWorkspaceId }, { status: 201 });
+    }
     if (body.kind === "workspace_switch") {
       await setActiveWorkspaceForUser(user.id, body.workspace_id);
       return NextResponse.json({ ok: true });
