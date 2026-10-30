@@ -326,6 +326,36 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+  async function createWorkspace() {
+    const name = window.prompt("Name your new workspace");
+    if (name == null) return;
+    const trimmedName = name.trim();
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      setNotice("Workspace name must be between 2 and 100 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await api("/api/workspace", {
+        method: "POST",
+        body: JSON.stringify({ kind: "workspace_create", name: trimmedName }),
+      });
+      setActive("Overview");
+      setSelectedProjectId(null);
+      setSelectedTaskIds([]);
+      setNotifications([]);
+      setUnreadNotifications(0);
+      setActivityItems([]);
+      await refresh();
+      await loadNotifications();
+      setNotice("New workspace created.");
+    } catch (error) {
+      setNotice(error.message || "Could not create workspace.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function switchWorkspace(event) {
     const workspaceId = event.target.value;
     if (!workspaceId || String(workspaceId) === String(workspace?.id || "")) return;
@@ -820,6 +850,7 @@ export default function Home() {
               {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           ) : <ChevronDown size={15}/>}
+            <button type="button" onClick={createWorkspace} disabled={busy} style={{ display: "block", marginTop: 7, padding: "4px 0", border: 0, background: "transparent", color: "#f0a77f", fontSize: 11, fontWeight: 700, cursor: busy ? "wait" : "pointer", textAlign: "left" }}>+ Create workspace</button>
         </div>
         <div className="nav-list">{[...NAV,...MODULE_NAV].map(({label,icon:Icon})=><button key={label} type="button" aria-current={active===label?"page":undefined} className={`nav-item ${active===label?"active":""}`} onClick={()=>{setActive(label);setMobileMenuOpen(false);}}><Icon size={17} strokeWidth={1.8}/><span>{label}</span></button>)}</div>
         <div className="sidebar-bottom">
