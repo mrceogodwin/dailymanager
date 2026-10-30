@@ -410,8 +410,31 @@ export async function POST(request) {
         await recordActivity({ workspaceId, user, action: "member_role_changed", entityType: "member", entityId: body.user_id, summary: `Changed ${member.rows[0].name || member.rows[0].email} role to ${role}.` });
         return NextResponse.json({ ok: true });
       }
-      const unassigned = await query("UPDATE tasks SET assigned_to = NULL, updated_at = NOW() WHERE workspace_id = $1 AND assigned_to = $2 RETURNING id", [workspaceId, String(body.user_id)]);
-      await query("DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, body.user_id]);
+      const removalClient = await pool.connect();
+      let unassignedCount = 0;
+      try {
+        await removalClient.query("BEGIN");
+        const unassigned = await removalClient.query(
+          "UPDATE tasks SET assigned_to = NULL, updated_at = NOW() WHERE workspace_id = $1 AND assigned_to = $2 RETURNING id",
+          [workspaceId, String(body.user_id)]
+        );
+        const removed = await removalClient.query(
+          "DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2 RETURNING user_id",
+          [workspaceId, body.user_id]
+        );
+        if (!removed.rowCount) {
+          await removalClient.query("ROLLBACK");
+          return NextResponse.json({ error: "Workspace member not found." }, { status: 404 });
+        }
+        unassignedCount = unassigned.rowCount;
+        await removalClient.query("COMMIT");
+      } catch (error) {
+        try { await removalClient.query("ROLLBACK"); } catch {}
+        throw error;
+      } finally {
+        removalClient.release();
+      }
+      const unassigned = { rowCount: unassignedCount };
       const removedName = member.rows[0].name || member.rows[0].email;
       await recordActivity({ workspaceId, user, action: "member_removed", entityType: "member", entityId: body.user_id, summary: `Removed ${removedName} from the workspace.` });
       if (unassigned.rowCount) await recordActivity({ workspaceId, user, action: "assignees_cleared", entityType: "member", entityId: body.user_id, summary: `Cleared ${unassigned.rowCount} task assignment${unassigned.rowCount === 1 ? "" : "s"} previously assigned to ${removedName}.` });
