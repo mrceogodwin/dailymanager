@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority VARCHAR(20) NOT NULL DEFAULT 'medium'
     CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
   due_at TIMESTAMPTZ,
+  assigned_to TEXT,
   created_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -82,6 +83,52 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
   window_started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+-- Collaboration tables are part of the fresh-install schema. Existing
+-- installations should apply the numbered migration files in db/migrations.
+CREATE TABLE IF NOT EXISTS task_comments (
+  id BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS workspace_notifications (
+  id BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  actor_id TEXT,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id TEXT,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS workspace_activity (
+  id BIGSERIAL PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  actor_id TEXT,
+  actor_name TEXT NOT NULL DEFAULT 'Workspace member',
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id TEXT,
+  summary TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS task_comments_task_created_idx
+  ON task_comments (workspace_id, task_id, created_at ASC, id ASC);
+CREATE INDEX IF NOT EXISTS workspace_notifications_user_created_idx
+  ON workspace_notifications (workspace_id, user_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS workspace_activity_workspace_created_idx
+  ON workspace_activity (workspace_id, created_at DESC, id DESC);
 
 CREATE INDEX IF NOT EXISTS workspace_members_user_id_idx ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS projects_workspace_updated_idx ON projects(workspace_id, updated_at DESC);
