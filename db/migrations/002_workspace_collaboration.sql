@@ -4,6 +4,7 @@
 -- All statements are idempotent so a partially completed migration can be retried.
 
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to TEXT;
+CREATE INDEX IF NOT EXISTS tasks_workspace_assigned_to_idx ON tasks (workspace_id, assigned_to) WHERE assigned_to IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS task_comments (
   id BIGSERIAL PRIMARY KEY,
