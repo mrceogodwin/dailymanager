@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool, query } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/session";
+import { isSameOriginMutation } from "../../../lib/request-security";
 
 export const runtime = "nodejs";
 
@@ -144,6 +145,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: "This request could not be verified. Refresh the page and try again." }, { status: 403 });
   try {
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
