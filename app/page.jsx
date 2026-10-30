@@ -328,7 +328,7 @@ export default function Home() {
 
   async function deleteWorkspace() {
     if (!workspace?.name) return;
-    const confirmation = window.prompt(`This permanently deletes "${workspace.name}" and its tasks, projects, notes, comments and activity. Type the exact workspace name to continue:`);
+    const confirmation = window.prompt(`This permanently deletes "${workspace.name}", all its members’ access, tasks, projects, notes, comments and activity. Type the exact workspace name to continue:`);
     if (confirmation == null) return;
     if (confirmation.trim() !== workspace.name) {
       setNotice("Workspace name did not match. Nothing was deleted.");
