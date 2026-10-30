@@ -193,6 +193,15 @@ export async function POST(request) {
     const isOwner = String(ownerResult.rows[0]?.owner_user_id) === String(user.id);
     const canManageWorkspace = isOwner || role === "admin";
     if (role === "viewer" && !isOwner && body.kind !== "notification_read") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    if (body.kind === "workspace_rename") {
+      if (!isOwner) return NextResponse.json({ error: "Only the workspace owner can rename this workspace." }, { status: 403 });
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (name.length < 2 || name.length > 100) {
+        return NextResponse.json({ error: "Workspace name must be between 2 and 100 characters." }, { status: 400 });
+      }
+      await query("UPDATE workspaces SET name = $1, updated_at = NOW() WHERE id = $2 AND owner_user_id = $3", [name, workspaceId, user.id]);
+      return NextResponse.json({ ok: true, name });
+    }
     if (body.kind === "notification_read") {
       await ensureWorkspaceNotificationsTable();
       if (body.id === "all") {
