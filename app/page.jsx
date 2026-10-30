@@ -116,6 +116,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [user, setUser] = useState(null);
   const [workspace, setWorkspace] = useState(null);
+  const [workspaces, setWorkspaces] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -213,6 +214,7 @@ export default function Home() {
     const data = await api("/api/auth/me");
     setUser(data.user);
     setWorkspace(data.workspace);
+    setWorkspaces(data.workspaces || (data.workspace ? [data.workspace] : []));
     setTasks(data.tasks || []);
     setProjects(data.projects || []);
     setNotes(data.notes || []);
@@ -324,11 +326,38 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+  async function switchWorkspace(event) {
+    const workspaceId = event.target.value;
+    if (!workspaceId || String(workspaceId) === String(workspace?.id || "")) return;
+    setBusy(true);
+    try {
+      await api("/api/workspace", {
+        method: "POST",
+        body: JSON.stringify({ kind: "workspace_switch", workspace_id: workspaceId }),
+      });
+      setActive("Overview");
+      setSelectedProjectId(null);
+      setSelectedTaskIds([]);
+      setNotifications([]);
+      setUnreadNotifications(0);
+      setActivityItems([]);
+      setTaskComments([]);
+      setTaskHistory([]);
+      await refresh();
+      await loadNotifications();
+      setNotice("Workspace switched.");
+    } catch (error) {
+      setNotice(error.message || "Could not switch workspace.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function logout() {
     setBusy(true);
     try {
       await api("/api/auth/logout", { method: "POST", body: "{}" });
-      setUser(null); setWorkspace(null); setTasks([]); setProjects([]); setNotes([]);
+      setUser(null); setWorkspace(null); setWorkspaces([]); setTasks([]); setProjects([]); setNotes([]);
       setAuthMode("login");
       setNotice("You have been signed out.");
     } catch (error) {
@@ -780,7 +809,18 @@ export default function Home() {
         <a className="brand" href="#" onClick={e => { e.preventDefault(); setActive("Overview"); setMobileMenuOpen(false); }}>
           <span className="brand-mark"><span/><span/><span/><span/></span><span className="brand-name">daily<span>manager</span><small>YOUR DAY, IN CONTROL</small></span>
         </a>
-        <div className="workspace-switch"><span className="workspace-avatar">{workspace?.name?.[0] || "D"}</span><span className="workspace-copy"><b>{workspace?.name || "My workspace"}</b><small>{workspace?.plan === "free_trial" ? "Free trial" : workspace?.plan || "Workspace"}</small></span><ChevronDown size={15}/></div>
+        <div className="workspace-switch">
+          <span className="workspace-avatar">{workspace?.name?.[0] || "D"}</span>
+          <span className="workspace-copy">
+            <b>{workspace?.name || "My workspace"}</b>
+            <small>{workspace?.plan === "free_trial" ? "Free trial" : workspace?.plan || "Workspace"}</small>
+          </span>
+          {workspaces.length > 1 ? (
+            <select aria-label="Switch workspace" value={workspace?.id || ""} onChange={switchWorkspace} disabled={busy} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}>
+              {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          ) : <ChevronDown size={15}/>}
+        </div>
         <div className="nav-list">{[...NAV,...MODULE_NAV].map(({label,icon:Icon})=><button key={label} type="button" aria-current={active===label?"page":undefined} className={`nav-item ${active===label?"active":""}`} onClick={()=>{setActive(label);setMobileMenuOpen(false);}}><Icon size={17} strokeWidth={1.8}/><span>{label}</span></button>)}</div>
         <div className="sidebar-bottom">
           <div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={17}/></div><b>Make room for more</b><p>Unlock your full potential with DailyManager Pro.</p><button onClick={()=>setNotice("Billing is not connected yet.")}>Explore plans <ArrowRight size={14}/></button></div>
