@@ -844,13 +844,14 @@ export default function Home() {
           <span className="workspace-copy">
             <b>{workspace?.name || "My workspace"}</b>
             <small>{workspace?.plan === "free_trial" ? "Free trial" : workspace?.plan || "Workspace"}</small>
-          </span>
-          {workspaces.length > 1 ? (
-            <select aria-label="Switch workspace" value={workspace?.id || ""} onChange={switchWorkspace} disabled={busy} style={{ display: "block", width: "100%", marginTop: 7, padding: "7px 9px", borderRadius: 8, border: "1px solid rgba(255,255,255,.14)", background: "#17191a", color: "#f4f2ef", fontSize: 12, outline: "none" }}>
-              {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          ) : <ChevronDown size={15}/>}
+            {workspaces.length > 1 && (
+              <select aria-label="Switch workspace" value={workspace?.id || ""} onChange={switchWorkspace} disabled={busy} style={{ display: "block", width: "100%", marginTop: 7, padding: "7px 9px", borderRadius: 8, border: "1px solid rgba(255,255,255,.14)", background: "#17191a", color: "#f4f2ef", fontSize: 12, outline: "none" }}>
+                {workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            )}
             <button type="button" onClick={createWorkspace} disabled={busy} style={{ display: "block", marginTop: 7, padding: "4px 0", border: 0, background: "transparent", color: "#f0a77f", fontSize: 11, fontWeight: 700, cursor: busy ? "wait" : "pointer", textAlign: "left" }}>+ Create workspace</button>
+          </span>
+          {workspaces.length === 1 && <ChevronDown size={15}/>}
         </div>
         <div className="nav-list">{[...NAV,...MODULE_NAV].map(({label,icon:Icon})=><button key={label} type="button" aria-current={active===label?"page":undefined} className={`nav-item ${active===label?"active":""}`} onClick={()=>{setActive(label);setMobileMenuOpen(false);}}><Icon size={17} strokeWidth={1.8}/><span>{label}</span></button>)}</div>
         <div className="sidebar-bottom">
