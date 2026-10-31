@@ -232,7 +232,13 @@ export default function Home() {
       return;
     }
     if (item.entity_type === "note") {
+      const note = notes.find(note => String(note.id) === String(item.entity_id));
       setActive("Notes");
+      if (note) {
+        editNote(note);
+      } else {
+        setNotice("This note is no longer available in the active workspace.");
+      }
       return;
     }
     if (item.entity_type === "member") {
@@ -401,9 +407,16 @@ export default function Home() {
       setSelectedTaskIds([]);
       setNotifications([]);
       setUnreadNotifications(0);
+      setNotificationsOpen(false);
       setActivityItems([]);
       setTaskComments([]);
       setTaskHistory([]);
+      setCommentTask(null);
+      setEditingTaskId(null);
+      setEditingNoteId(null);
+      setEditingProjectId(null);
+      setModal("");
+      setSelectedFeature(null);
       await refresh();
       await loadNotifications();
       setNotice("Workspace deleted. You are now in another workspace.");
