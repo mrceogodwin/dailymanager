@@ -323,6 +323,7 @@ export async function POST(request) {
     }
 
     if (body.kind === "task") {
+      if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Viewers have read-only access and cannot create tasks." }, { status: 403 });
       const title = typeof body.title === "string" ? body.title.trim() : "";
       const priority = ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : "medium";
       const description = typeof body.description === "string" ? body.description.trim() : "";
@@ -346,6 +347,7 @@ export async function POST(request) {
     }
 
     if (body.kind === "task_update") {
+      if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Viewers have read-only access and cannot edit tasks." }, { status: 403 });
       if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
       const access = await requireTaskAccess(body.id);
       if (access.error) return access.error;
@@ -379,6 +381,7 @@ export async function POST(request) {
     }
 
     if (body.kind === "task_delete") {
+      if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Viewers have read-only access and cannot delete tasks." }, { status: 403 });
       if (!body.id) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
       const access = await requireTaskAccess(body.id);
       if (access.error) return access.error;
@@ -406,6 +409,7 @@ export async function POST(request) {
     }
 
     if (body.kind === "task_status") {
+      if (role === "viewer" && !isOwner) return NextResponse.json({ error: "Viewers have read-only access and cannot change task status." }, { status: 403 });
       if (!body.id || !["todo", "in_progress", "done", "cancelled"].includes(body.status)) {
         return NextResponse.json({ error: "Invalid task status update." }, { status: 400 });
       }
