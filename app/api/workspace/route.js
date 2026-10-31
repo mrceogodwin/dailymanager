@@ -323,7 +323,7 @@ export async function POST(request) {
       const recipients = [...new Set([access.task.created_by, access.task.assigned_to].filter(id => id && String(id) !== String(user.id)).map(String))];
       await Promise.allSettled(recipients.map(userId => createWorkspaceNotification({
         workspaceId, userId, actorId: user.id, kind: "task_commented",
-        title: "New task comment", body: `A team member commented on “${task.rows[0].title}”.`,
+        title: "New task comment", body: `A team member commented on “${access.task.title || "Task"}”.`,
         entityType: "task", entityId: taskId
       })));
       return NextResponse.json({ ok: true, comment: { ...saved.rows[0], author_name: user.name || user.email, author_email: user.email } }, { status: 201 });
