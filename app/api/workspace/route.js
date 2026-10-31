@@ -357,7 +357,9 @@ export async function POST(request) {
         [title, description, dueAt ? dueAt.toISOString() : null, projectId, priority, assignedTo, body.id, workspaceId]
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
-      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignedTo ? ` and assigned it to ${assigneeLabel || "a team member"}` : " and cleared its assignee"}.` });
+      const assignmentChanged = String(assignedTo || "") !== String(previousAssignee || "");
+      const assignmentSummary = assignmentChanged ? (assignedTo ? ` and assigned it to ${assigneeLabel || "a team member"}` : " and removed its assignee") : "";
+      await recordActivity({ workspaceId, user, action: "updated", entityType: "task", entityId: body.id, summary: `Updated task “${title}”${assignmentSummary}.` });
       if (assignedTo && String(assignedTo) !== String(user.id) && String(assignedTo) !== String(previousAssignee || "")) await createWorkspaceNotification({ workspaceId, userId: assignedTo, actorId: user.id, kind: "task_assigned", title: "Task assigned to you", body: `You were assigned “${title}”.`, entityType: "task", entityId: body.id });
       return NextResponse.json({ ok: true });
     }
