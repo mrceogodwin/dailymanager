@@ -6,6 +6,15 @@ import { isSameOriginMutation } from "../../../lib/request-security";
 
 export const runtime = "nodejs";
 
+function parseTaskDueDate(value) {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return undefined;
+  return date;
+}
+
 async function ensureTaskAssignmentColumn() {
   await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to TEXT");
 }
@@ -303,10 +312,10 @@ export async function POST(request) {
       const title = typeof body.title === "string" ? body.title.trim() : "";
       const priority = ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : "medium";
       const description = typeof body.description === "string" ? body.description.trim() : "";
-      const dueAt = body.due_at ? new Date(body.due_at) : null;
+      const dueAt = parseTaskDueDate(body.due_at);
       if (!title || title.length > 500) return NextResponse.json({ error: "Task name is required and must be under 500 characters." }, { status: 400 });
       if (description.length > 4000) return NextResponse.json({ error: "Task description must be under 4,000 characters." }, { status: 400 });
-      if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
+      if (dueAt === undefined) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
       const assignedTo = await validateTaskAssignee(body.assigned_to, workspaceId);
       let projectId = body.project_id || null;
       if (projectId) {
@@ -329,11 +338,11 @@ export async function POST(request) {
       const title = typeof body.title === "string" ? body.title.trim() : "";
       const description = typeof body.description === "string" ? body.description.trim() : "";
       const priority = ["low", "medium", "high", "urgent"].includes(body.priority) ? body.priority : null;
-      const dueAt = body.due_at ? new Date(body.due_at) : null;
+      const dueAt = parseTaskDueDate(body.due_at);
       if (!title || title.length > 500) return NextResponse.json({ error: "Task name is required and must be under 500 characters." }, { status: 400 });
       if (description.length > 4000) return NextResponse.json({ error: "Task description must be under 4,000 characters." }, { status: 400 });
       if (!priority) return NextResponse.json({ error: "Choose a valid task priority." }, { status: 400 });
-      if (dueAt && Number.isNaN(dueAt.getTime())) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
+      if (dueAt === undefined) return NextResponse.json({ error: "Choose a valid due date." }, { status: 400 });
       const assignedTo = await validateTaskAssignee(body.assigned_to, workspaceId);
       const previousAssignee = access.task.assigned_to == null ? null : String(access.task.assigned_to);
       const assigneeResult = assignedTo ? await query("SELECT name, email FROM app_users WHERE id::text = $1 LIMIT 1", [assignedTo]) : null;
