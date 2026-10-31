@@ -126,9 +126,17 @@ export async function GET(request) {
     }
     const taskId = params.get("task_id");
     if (taskId) {
-      await ensureTaskCommentsTable();
-      const task = await query("SELECT id FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
+      const [task, membership] = await Promise.all([
+        query("SELECT id, created_by, assigned_to FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]),
+        query("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, String(user.id)])
+      ]);
       if (!task.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      const role = membership.rows[0]?.role || "";
+      const canManageWorkspace = String(activeWorkspace.owner_user_id) === String(user.id) || role === "admin";
+      if (!canManageWorkspace && String(task.rows[0].created_by) !== String(user.id) && String(task.rows[0].assigned_to || "") !== String(user.id)) {
+        return NextResponse.json({ error: "You can only view discussions for tasks you created or that are assigned to you." }, { status: 403 });
+      }
+      await ensureTaskCommentsTable();
       const comments = await query(`SELECT c.id, c.task_id, c.user_id, c.body, c.created_at, c.updated_at, u.name AS author_name, u.email AS author_email
         FROM task_comments c LEFT JOIN app_users u ON u.id::text = c.user_id
         WHERE c.workspace_id = $1 AND c.task_id = $2 ORDER BY c.created_at ASC, c.id ASC LIMIT 200`, [workspaceId, taskId]);
