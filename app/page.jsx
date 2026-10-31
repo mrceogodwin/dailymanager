@@ -703,7 +703,7 @@ export default function Home() {
 
   async function acceptWorkspaceInvitation(event) {
     event.preventDefault(); setInvitationLoading(true);
-    try { await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_accept", token: invitationToken }) }); setInvitationToken(""); setNotice("Invitation accepted. Switch to the joined workspace using the workspace selector."); await refresh(); }
+    try { await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_accept", token: invitationToken }) }); setInvitationToken(""); setNotice("Invitation accepted. You are now in the invited workspace."); await refresh(); }
     catch (error) { setNotice(error.message || "Could not accept invitation."); }
     finally { setInvitationLoading(false); }
   }
