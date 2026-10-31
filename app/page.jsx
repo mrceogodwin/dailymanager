@@ -27,9 +27,11 @@ const NAV = [
 function parseDueDate(value) {
   if (!value) return null;
   const raw = String(value).slice(0, 10);
-  const parts = raw.split("-").map(Number);
-  if (parts.length !== 3 || parts.some(part => !Number.isFinite(part))) return new Date(value);
-  return new Date(parts[0], parts[1] - 1, parts[2]);
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return null;
+  const [year, month, day] = raw.split("-").map(Number);
+  const parsed = new Date(year, month - 1, day);
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day) return null;
+  return parsed;
 }
 
 function formatDueDateForExport(value) {
