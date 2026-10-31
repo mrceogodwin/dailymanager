@@ -617,8 +617,9 @@ export default function Home() {
   async function removeWorkspaceMember(member) {
     if (!window.confirm("Remove this person from the workspace?")) return;
     try {
-      await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "member_remove", user_id: member.id }) });
-      setNotice("Member removed.");
+      const result = await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "member_remove", user_id: member.id }) });
+      const cleared = Number(result?.unassigned_count || 0);
+      setNotice(cleared ? `Member removed. ${cleared} task assignment${cleared === 1 ? " was" : "s were"} cleared and can be reassigned.` : "Member removed.");
       await refresh();
     } catch (error) { setNotice(error.message); }
   }
