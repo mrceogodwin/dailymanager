@@ -221,8 +221,14 @@ export default function Home() {
       return;
     }
     if (item.entity_type === "project") {
-      setActive("Projects");
-      if (item.entity_id) setSelectedProjectId(item.entity_id);
+      const project = projects.find(project => String(project.id) === String(item.entity_id));
+      if (!project) {
+        setActive("Projects");
+        setNotice("This project is no longer available in the active workspace.");
+        return;
+      }
+      setSelectedProjectId(project.id);
+      setActive("Project details");
       return;
     }
     if (item.entity_type === "note") {
