@@ -300,8 +300,14 @@ export default function Home() {
   const completed = tasks.filter((task) => task.status === "done").length;
   const openTasks = tasks.filter((task) => !["done", "cancelled"].includes(task.status)).length;
   const plannerTasks = useMemo(() => filteredTasks.filter((task) => !["done", "cancelled"].includes(task.status)).sort((a, b) => {
-    const aDue = a.due_at ? parseDueDate(a.due_at).getTime() : Number.POSITIVE_INFINITY;
-    const bDue = b.due_at ? parseDueDate(b.due_at).getTime() : Number.POSITIVE_INFINITY;
+    const dueTimestamp = (task) => {
+      if (!task.due_at) return Number.POSITIVE_INFINITY;
+      const parsed = parseDueDate(task.due_at);
+      const timestamp = parsed?.getTime();
+      return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+    };
+    const aDue = dueTimestamp(a);
+    const bDue = dueTimestamp(b);
     if (aDue !== bDue) return aDue - bDue;
     const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3 };
     const priorityDifference = (priorityRank[a.priority] ?? 4) - (priorityRank[b.priority] ?? 4);
@@ -309,8 +315,16 @@ export default function Home() {
     return String(a.title || "").localeCompare(String(b.title || ""));
   }), [filteredTasks]);
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const overdueTasks = plannerTasks.filter((task) => task.due_at && parseDueDate(task.due_at) < todayStart);
-  const dueTodayTasks = plannerTasks.filter((task) => task.due_at && parseDueDate(task.due_at).toDateString() === todayStart.toDateString());
+  const overdueTasks = plannerTasks.filter((task) => {
+    if (!task.due_at) return false;
+    const due = parseDueDate(task.due_at);
+    return Number.isFinite(due?.getTime()) && due < todayStart;
+  });
+  const dueTodayTasks = plannerTasks.filter((task) => {
+    if (!task.due_at) return false;
+    const due = parseDueDate(task.due_at);
+    return Number.isFinite(due?.getTime()) && due.toDateString() === todayStart.toDateString();
+  });
   const highPriorityTasks = tasks.filter((task) => !["done", "cancelled"].includes(task.status) && ["high", "urgent"].includes(task.priority)).length;
 
   async function submitAuth(event) {
