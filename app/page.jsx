@@ -1107,12 +1107,13 @@ export default function Home() {
             const countedRelated=related.filter(task=>task.status!=="cancelled");
             const done=countedRelated.filter(task=>task.status==="done").length;
             const activeTasks=related.filter(task=>!["done","cancelled"].includes(task.status));
-            const overdue=activeTasks.filter(task=>task.due_at&&parseDueDate(task.due_at)<todayStart);
+            const validDueDate=(task)=>{if(!task.due_at)return null;const date=parseDueDate(task.due_at);return date&&Number.isFinite(date.getTime())?date:null;};
+            const overdue=activeTasks.filter(task=>{const due=validDueDate(task);return due&&due<todayStart;});
             const progress=countedRelated.length?Math.round(done/countedRelated.length*100):0;
             const priorityGroups=[{key:"urgent",label:"Urgent"},{key:"high",label:"High"},{key:"medium",label:"Medium"},{key:"low",label:"Low"}];
             const todayKey=new Date(); todayKey.setHours(0,0,0,0);
             const nextWeek=new Date(todayKey); nextWeek.setDate(nextWeek.getDate()+7);
-            const dueNextWeek=activeTasks.filter(task=>task.due_at&&parseDueDate(task.due_at)>=todayKey&&parseDueDate(task.due_at)<nextWeek).sort((a,b)=>parseDueDate(a.due_at)-parseDueDate(b.due_at));
+            const dueNextWeek=activeTasks.filter(task=>{const due=validDueDate(task);return due&&due>=todayKey&&due<nextWeek;}).sort((a,b)=>validDueDate(a)-validDueDate(b));
             const unscheduled=activeTasks.filter(task=>!task.due_at).length;
 
             const statusGroups=[{key:"todo",label:"To do"},{key:"in_progress",label:"In progress"},{key:"done",label:"Completed"},{key:"cancelled",label:"Cancelled"}];
@@ -1147,7 +1148,7 @@ export default function Home() {
                 <div className="panel-heading"><div><h2>Unassigned tasks</h2><p>Add existing personal tasks to this project without recreating them.</p></div><span className="task-status">{tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).length} available</span></div>
                 <div style={{display:"grid",gap:8}}>
                   {tasks.filter(task=>!task.project_id&&![ "done", "cancelled" ].includes(task.status)).slice(0,12).map(task=><div key={task.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",padding:"12px 0",borderTop:"1px solid #2b3032"}}>
-                    <div style={{display:"grid",gap:4,minWidth:0,flex:"1 1 200px"}}><b style={{fontSize:13,overflowWrap:"anywhere"}}>{task.title}</b><span style={{fontSize:11,color:"#9da5a8"}}>{task.priority||"medium"} priority · {task.due_at?"Due "+parseDueDate(task.due_at).toLocaleDateString(undefined,{month:"short",day:"numeric"}):"No due date"}</span></div>
+                    <div style={{display:"grid",gap:4,minWidth:0,flex:"1 1 200px"}}><b style={{fontSize:13,overflowWrap:"anywhere"}}>{task.title}</b><span style={{fontSize:11,color:"#9da5a8"}}>{task.priority||"medium"} priority · {validDueDate(task)?"Due "+validDueDate(task).toLocaleDateString(undefined,{month:"short",day:"numeric"}):task.due_at?"Invalid due date":"No due date"}</span></div>
                     <button type="button" className="project-view-tasks" disabled={busy} onClick={()=>assignTaskToProject(task,project)}><Plus size={14}/> Add to project</button>
                   </div>)}
                 </div>
