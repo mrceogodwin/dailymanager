@@ -508,13 +508,18 @@ export async function POST(request) {
       }
 
       if (!body.user_id || String(body.user_id) === String(user.id)) return NextResponse.json({ error: "Choose another workspace member." }, { status: 400 });
-      const member = await query("SELECT m.user_id, u.name, u.email FROM workspace_members m JOIN app_users u ON u.id = m.user_id WHERE m.workspace_id = $1 AND m.user_id = $2", [workspaceId, body.user_id]);
+      const member = await query("SELECT m.user_id, m.role, u.name, u.email FROM workspace_members m JOIN app_users u ON u.id = m.user_id WHERE m.workspace_id = $1 AND m.user_id = $2", [workspaceId, body.user_id]);
       if (!member.rowCount) return NextResponse.json({ error: "Workspace member not found." }, { status: 404 });
       if (body.kind === "member_role") {
         const role = ["admin", "member", "viewer"].includes(body.role) ? body.role : "";
         if (!role) return NextResponse.json({ error: "Choose admin, member, or viewer." }, { status: 400 });
-        await query("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3", [role, workspaceId, body.user_id]);
-        await recordActivity({ workspaceId, user, action: "member_role_changed", entityType: "member", entityId: body.user_id, summary: `Changed ${member.rows[0].name || member.rows[0].email} role to ${role}.` });
+        const previousRole = member.rows[0].role;
+        if (previousRole === role) return NextResponse.json({ ok: true, unchanged: true });
+        const changed = await query("UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3 RETURNING user_id", [role, workspaceId, body.user_id]);
+        if (!changed.rowCount) return NextResponse.json({ error: "Workspace member not found." }, { status: 404 });
+        const memberName = member.rows[0].name || member.rows[0].email;
+        await recordActivity({ workspaceId, user, action: "member_role_changed", entityType: "member", entityId: body.user_id, summary: `Changed ${memberName} role from ${previousRole} to ${role}.` });
+        await createWorkspaceNotification({ workspaceId, userId: body.user_id, actorId: user.id, kind: "member_role_changed", title: "Workspace role updated", body: `Your workspace role changed to ${role}.`, entityType: "member", entityId: body.user_id });
         return NextResponse.json({ ok: true });
       }
       const removalClient = await pool.connect();
