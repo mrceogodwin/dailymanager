@@ -1193,7 +1193,7 @@ export default function Home() {
                     {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(day=><div key={day} style={{textAlign:"center",fontSize:11,color:"#9da5a8",padding:"7px 0"}}>{day}</div>)}
                     {cells.map((date,index)=>{
                       const key=dayKey(date);
-                      const dayTasks=tasks.filter(t=>t.due_at&&dayKey(parseDueDate(t.due_at))===key);
+                      const dayTasks=tasks.filter(t=>t.due_at&&parseDueDate(t.due_at)&&dayKey(parseDueDate(t.due_at))===key);
                       const selected=key===selectedKey;
                       const today=key===dayKey(new Date());
                       const inMonth=calendarView==="week"||date.getMonth()===month;
