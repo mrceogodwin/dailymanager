@@ -514,7 +514,7 @@ export async function POST(request) {
     }
 
     if (["member_add", "member_role", "member_remove"].includes(body.kind)) {
-      const workspaceResult = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
+      const workspaceResult = await query("SELECT owner_user_id, name FROM workspaces WHERE id = $1", [workspaceId]);
       if (String(workspaceResult.rows[0]?.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can manage members." }, { status: 403 });
 
       if (body.kind === "member_add") {
