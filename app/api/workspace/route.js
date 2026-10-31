@@ -272,7 +272,8 @@ export async function POST(request) {
       if (body.id === "all") {
         await query("UPDATE workspace_notifications SET read_at = NOW() WHERE workspace_id = $1 AND user_id = $2 AND read_at IS NULL", [workspaceId, String(user.id)]);
       } else if (body.id) {
-        await query("UPDATE workspace_notifications SET read_at = NOW() WHERE id = $1 AND workspace_id = $2 AND user_id = $3", [body.id, workspaceId, String(user.id)]);
+        const updated = await query("UPDATE workspace_notifications SET read_at = COALESCE(read_at, NOW()) WHERE id = $1 AND workspace_id = $2 AND user_id = $3 RETURNING id, read_at", [body.id, workspaceId, String(user.id)]);
+        if (!updated.rowCount) return NextResponse.json({ error: "Notification not found in the active workspace." }, { status: 404 });
       } else {
         return NextResponse.json({ error: "Notification ID is required." }, { status: 400 });
       }
