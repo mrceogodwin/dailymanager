@@ -41,6 +41,8 @@ async function ensureWorkspaceInvitationsTable() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   await query("CREATE INDEX IF NOT EXISTS workspace_invitations_workspace_created_idx ON workspace_invitations (workspace_id, created_at DESC)");
+  await query("UPDATE workspace_invitations SET status = 'expired' WHERE status = 'pending' AND expires_at <= NOW()");
+  await query("CREATE UNIQUE INDEX IF NOT EXISTS workspace_invitations_one_pending_per_email_idx ON workspace_invitations (workspace_id, LOWER(email)) WHERE status = 'pending'");
   await query("CREATE INDEX IF NOT EXISTS workspace_invitations_pending_email_idx ON workspace_invitations (LOWER(email), expires_at) WHERE status = 'pending'");
 }
 
@@ -137,6 +139,7 @@ export async function GET(request) {
       await ensureWorkspaceInvitationsTable();
       const owner = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
       if (String(owner.rows[0]?.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can view invitations." }, { status: 403 });
+      await query("UPDATE workspace_invitations SET status = 'expired' WHERE workspace_id = $1 AND status = 'pending' AND expires_at <= NOW()", [workspaceId]);
       const invitations = await query(`SELECT id, email, role, status, expires_at, accepted_at, cancelled_at, created_at
         FROM workspace_invitations WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 100`, [workspaceId]);
       return NextResponse.json({ invitations: invitations.rows });
@@ -283,7 +286,7 @@ export async function POST(request) {
     const ownerResult = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
     const isOwner = String(ownerResult.rows[0]?.owner_user_id) === String(user.id);
     const canManageWorkspace = isOwner || role === "admin";
-    if (role === "viewer" && !isOwner && body.kind !== "notification_read") return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
+    if (role === "viewer" && !isOwner && !["notification_read", "invitation_accept"].includes(body.kind)) return NextResponse.json({ error: "Your workspace role is view-only. Ask the workspace owner for edit access." }, { status: 403 });
     if (body.kind === "workspace_delete") {
       if (!isOwner) return NextResponse.json({ error: "Only the workspace owner can delete this workspace." }, { status: 403 });
       const confirmation = typeof body.confirmation === "string" ? body.confirmation.trim() : "";
