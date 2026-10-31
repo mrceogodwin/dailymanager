@@ -280,7 +280,7 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
     const requireTaskAccess = async (taskId) => {
-      const task = await query("SELECT created_by, assigned_to FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
+      const task = await query("SELECT created_by, assigned_to, status FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
       if (!task.rowCount) return { error: NextResponse.json({ error: "Task not found." }, { status: 404 }) };
       if (!canManageWorkspace && String(task.rows[0].created_by) !== String(user.id) && String(task.rows[0].assigned_to || "") !== String(user.id)) {
         return { error: NextResponse.json({ error: "You can only change tasks you created or that are assigned to you." }, { status: 403 }) };
@@ -407,6 +407,7 @@ export async function POST(request) {
       }
       const access = await requireTaskAccess(body.id);
       if (access.error) return access.error;
+      if (access.task.status === body.status) return NextResponse.json({ ok: true, unchanged: true });
       const result = await query(
         "UPDATE tasks SET status = $1, updated_at = NOW() WHERE id = $2 AND workspace_id = $3 RETURNING id",
         [body.status, body.id, workspaceId]
