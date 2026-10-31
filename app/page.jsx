@@ -494,9 +494,16 @@ export default function Home() {
       setSelectedTaskIds([]);
       setNotifications([]);
       setUnreadNotifications(0);
+      setNotificationsOpen(false);
       setActivityItems([]);
       setTaskComments([]);
       setTaskHistory([]);
+      setCommentTask(null);
+      setEditingTaskId(null);
+      setEditingNoteId(null);
+      setEditingProjectId(null);
+      setModal("");
+      setSelectedFeature(null);
       await refresh();
       await loadNotifications();
       setNotice("Workspace switched.");
