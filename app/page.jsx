@@ -128,6 +128,12 @@ export default function Home() {
   const [activityError, setActivityError] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState("member");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [invitations, setInvitations] = useState([]);
+  const [invitationToken, setInvitationToken] = useState("");
+  const [createdInviteLink, setCreatedInviteLink] = useState("");
+  const [invitationLoading, setInvitationLoading] = useState(false);
   const [active, setActive] = useState("Overview");
   const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [calendarView, setCalendarView] = useState("month");
@@ -655,6 +661,67 @@ export default function Home() {
       await refresh(); setNotice((kind === "note" || kind === "note_update") ? (kind === "note_update" ? "Note updated." : "Note saved.") : (kind === "project" || kind === "project_update") ? (kind === "project_update" ? "Project updated." : "Project created.") : kind === "task_update" ? "Task updated." : "Task added.");
     } catch (error) { setNotice(error.message); }
     finally { setBusy(false); }
+  }
+
+  useEffect(() => { if (active === "Settings" && String(workspace?.owner_user_id) === String(user?.id)) loadWorkspaceInvitations(); }, [active, workspace?.id, user?.id]);
+
+  async function loadWorkspaceInvitations() {
+    if (String(workspace?.owner_user_id) !== String(user?.id)) return;
+    setInvitationLoading(true);
+    try {
+      const data = await api("/api/workspace?invitations=1");
+      setInvitations(data.invitations || []);
+    } catch (error) {
+      setNotice(error.message || "Could not load workspace invitations.");
+    } finally {
+      setInvitationLoading(false);
+    }
+  }
+
+  async function createWorkspaceInvitation(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const data = await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_create", email: inviteEmail, role: inviteRole }) });
+      setInviteEmail("");
+      setCreatedInviteLink(`${window.location.origin}/?invite=${encodeURIComponent(data.token)}`);
+      setNotice("Invitation created. Copy and share the secure invitation link; email delivery is not configured yet.");
+      await loadWorkspaceInvitations();
+    } catch (error) {
+      setNotice(error.message || "Could not create invitation.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelWorkspaceInvitation(invitation) {
+    if (!window.confirm(`Cancel the invitation for ${invitation.email}?`)) return;
+    setBusy(true);
+    try {
+      await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_cancel", id: invitation.id }) });
+      setNotice("Invitation cancelled.");
+      await loadWorkspaceInvitations();
+    } catch (error) {
+      setNotice(error.message || "Could not cancel invitation.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function acceptWorkspaceInvitation(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const result = await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_accept", token: invitationToken }) });
+      setInvitationToken("");
+      setCreatedInviteLink("");
+      setNotice("Workspace invitation accepted. Switch to the invited workspace to begin collaborating.");
+      await refresh();
+    } catch (error) {
+      setNotice(error.message || "Could not accept invitation.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addWorkspaceMember(event) {
@@ -1371,7 +1438,22 @@ export default function Home() {
             <div className="activity-feed">{activityItems.map(item=><article className="activity-entry" key={item.id}><span className={`activity-entry-icon activity-${item.entity_type}`}>{item.entity_type==="project"?<FolderKanban size={15}/>:item.entity_type==="member"?<Users size={15}/>:item.entity_type==="note"?<FileText size={15}/>:<ListTodo size={15}/>}</span><div className="activity-entry-main"><b>{item.actor_name}</b><p>{item.summary}</p><span>{new Date(item.created_at).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})}</span></div><span className="activity-entry-type">{item.entity_type}</span></article>)}</div>
             <p className="activity-footnote">Activity history starts when this feature is deployed. Earlier changes are not backfilled.</p>
           </section>}
-          {active==="Settings" && <><section className="panel"><div className="panel-heading"><div><h2>Workspace settings</h2><p>Your account and plan information.</p></div></div><p><b>Workspace:</b> {workspace?.name}</p>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={renameWorkspace} style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",margin:"12px 0 18px"}}><input name="workspace_name" aria-label="Workspace name" defaultValue={workspace?.name || ""} required minLength={2} maxLength={100} style={{...inputStyle,flex:"1 1 220px"}}/><button type="submit" style={buttonStyle} disabled={busy}>{busy?"Saving…":"Rename workspace"}</button></form>}<p><b>Account:</b> {user.email}</p><p><b>Plan:</b> {workspace?.plan}</p><p><b>Trial ends:</b> {workspace?.trial_ends_at?new Date(workspace.trial_ends_at).toLocaleDateString():"Not set"}</p><p>Billing is not connected. No payment will be taken in this version.</p></section>{String(workspace?.owner_user_id)===String(user?.id)&&workspaces.length>1&&<section className="panel" style={{marginTop:18,border:"1px solid #75443d"}}><div className="panel-heading"><div><h2 style={{color:"#f08c76"}}>Danger zone</h2><p>Deleting this workspace permanently removes its projects, tasks, notes, comments and activity.</p></div></div><button type="button" onClick={deleteWorkspace} disabled={busy} style={{...buttonStyle,background:"#6f302b",color:"#fff"}}>{busy?"Please wait…":"Delete this workspace"}</button></section>}<section className="panel" style={{marginTop:18}}><div className="panel-heading"><div><h2>Workspace members</h2><p>Manage existing DailyManager accounts that can access this workspace.</p></div><span className="task-status">{members.length} member{members.length===1?"":"s"}</span></div>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={addWorkspaceMember} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}><input aria-label="Existing member account email" placeholder="Existing DailyManager account email" type="email" required maxLength={254} value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} style={{...inputStyle,flex:"1 1 220px"}}/><select aria-label="New member role" value={memberRole} onChange={e=>setMemberRole(e.target.value)} style={{...inputStyle,width:"auto"}}><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button style={buttonStyle} disabled={busy||!memberEmail.trim()}>{busy?"Adding…":"Add existing member"}</button><p style={{flex:"1 1 100%",fontSize:12,color:"#a9b0b2",margin:"2px 0 0"}}>This adds an account that has already registered. It does not send an email invitation. People without an account must register before you can add them.</p></form>}{members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",gap:12,justifyContent:"space-between",padding:"12px 0",borderTop:"1px solid var(--line, #303538)",flexWrap:"wrap"}}><div><b>{member.name}</b><div style={{fontSize:12,color:"#a9b0b2",marginTop:4}}>{member.email}{String(member.id)===String(workspace?.owner_user_id)?" · Workspace owner":""}</div><div className="member-workload"><span>{tasks.filter(task=>String(task.assigned_to||"")===String(member.id)&&!["done","cancelled"].includes(task.status)).length} open</span><span>{tasks.filter(task=>String(task.assigned_to||"")===String(member.id)&&task.status==="in_progress").length} in progress</span><span>{tasks.filter(task=>String(task.assigned_to||"")===String(member.id)&&!["done","cancelled"].includes(task.status)&&task.due_at&&parseDueDate(task.due_at)&&parseDueDate(task.due_at)<todayStart).length} overdue</span></div></div><div style={{display:"flex",gap:8,alignItems:"center"}}>{String(workspace?.owner_user_id)===String(user?.id)&&String(member.id)!==String(user?.id)?<><select aria-label={"Role for "+member.email} value={["admin","member","viewer"].includes(member.role)?member.role:"member"} onChange={e=>updateWorkspaceMember(member,e.target.value)} style={{...inputStyle,width:"auto",minWidth:110}}><option value="admin">Admin</option><option value="member">Member</option><option value="viewer">Viewer</option></select><button className="icon-button" title="Remove member" aria-label={"Remove "+member.email} onClick={()=>removeWorkspaceMember(member)}><Trash2 size={14}/></button></>:<span className="task-status">{member.role||"member"}</span>}</div></div>)}{!members.length&&<p className="empty-state">No workspace members found.</p>}<p style={{fontSize:12,color:"#a9b0b2",marginTop:12}}>Members must already have a DailyManager account. Owners and admins can manage projects. Members can manage tasks they created or that are assigned to them. Viewers have read-only access.</p></section></>}
+          {active==="Settings" && <><section className="panel"><div className="panel-heading"><div><h2>Workspace settings</h2><p>Your account and plan information.</p></div></div><p><b>Workspace:</b> {workspace?.name}</p>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={renameWorkspace} style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",margin:"12px 0 18px"}}><input name="workspace_name" aria-label="Workspace name" defaultValue={workspace?.name || ""} required minLength={2} maxLength={100} style={{...inputStyle,flex:"1 1 220px"}}/><button type="submit" style={buttonStyle} disabled={busy}>{busy?"Saving…":"Rename workspace"}</button></form>}<p><b>Account:</b> {user.email}</p><p><b>Plan:</b> {workspace?.plan}</p><p><b>Trial ends:</b> {workspace?.trial_ends_at?new Date(workspace.trial_ends_at).toLocaleDateString():"Not set"}</p><p>Billing is not connected. No payment will be taken in this version.</p></section>{String(workspace?.owner_user_id)===String(user?.id)&&workspaces.length>1&&<section className="panel" style={{marginTop:18,border:"1px solid #75443d"}}><div className="panel-heading"><div><h2 style={{color:"#f08c76"}}>Danger zone</h2><p>Deleting this workspace permanently removes its projects, tasks, notes, comments and activity.</p></div></div><button type="button" onClick={deleteWorkspace} disabled={busy} style={{...buttonStyle,background:"#6f302b",color:"#fff"}}>{busy?"Please wait…":"Delete this workspace"}</button></section>}<section className="panel" style={{marginTop:18}}><div className="panel-heading"><div><h2>Workspace members</h2><p>Manage existing DailyManager accounts that can access this workspace.</p></div><span className="task-status">{members.length} member{members.length===1?"":"s"}</span></div>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={addWorkspaceMember} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}><input aria-label="Existing member account email" placeholder="Existing DailyManager account email" type="email" required maxLength={254} value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} style={{...inputStyle,flex:"1 1 220px"}}/><select aria-label="New member role" value={memberRole} onChange={e=>setMemberRole(e.target.value)} style={{...inputStyle,width:"auto"}}><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button style={buttonStyle} disabled={busy||!memberEmail.trim()}>{busy?"Adding…":"Add existing member"}</button><p style={{flex:"1 1 100%",fontSize:12,color:"#a9b0b2",margin:"2px 0 0"}}>This adds an account that has already registered. It does not send an email invitation. People without an account must register before you can add them.</p></form>}{members.map(member=><div key={member.id} style={{display:"flex",alignItems:"center",gap:12,justifyContent:"space-between",padding:"12px 0",borderTop:"1px solid var(--line, #303538)",flexWrap:"wrap"}}><div><b>{member.name}</b><div style={{fontSize:12,color:"#a9b0b2",marginTop:4}}>{member.email}{String(member.id)===String(workspace?.owner_user_id)?" · Workspace owner":""}</div><div className="member-workload"><span>{tasks.filter(task=>String(task.assigned_to||"")===String(member.id)&&!["done","cancelled"].includes(task.status)).length} open</span><span>{tasks.filter(task=>String(task.assigned_to||"")===String(member.id)&&task.status==="in_progress").length} in progress</span><span>{tasks.filter(task=>String(task.assigned_to||"")===String(member.id)&&!["done","cancelled"].includes(task.status)&&task.due_at&&parseDueDate(task.due_at)&&parseDueDate(task.due_at)<todayStart).length} overdue</span></div></div><div style={{display:"flex",gap:8,alignItems:"center"}}>{String(workspace?.owner_user_id)===String(user?.id)&&String(member.id)!==String(user?.id)?<><select aria-label={"Role for "+member.email} value={["admin","member","viewer"].includes(member.role)?member.role:"member"} onChange={e=>updateWorkspaceMember(member,e.target.value)} style={{...inputStyle,width:"auto",minWidth:110}}><option value="admin">Admin</option><option value="member">Member</option><option value="viewer">Viewer</option></select><button className="icon-button" title="Remove member" aria-label={"Remove "+member.email} onClick={()=>removeWorkspaceMember(member)}><Trash2 size={14}/></button></>:<span className="task-status">{member.role||"member"}</span>}</div></div>)}{!members.length&&<p className="empty-state">No workspace members found.</p>}{String(workspace?.owner_user_id)===String(user?.id)&&<section className="panel" style={{marginTop:18}}>
+  <div className="panel-heading"><div><h2>Workspace invitations</h2><p>Invite people by email, assign a role and share a secure, expiring link.</p></div><span className="task-status">{invitations.filter(item=>item.status==="pending").length} pending</span></div>
+  <form onSubmit={createWorkspaceInvitation} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+    <input type="email" required maxLength={254} aria-label="Invitation email" placeholder="person@example.com" value={inviteEmail} onChange={event=>setInviteEmail(event.target.value)} style={{...inputStyle,flex:"1 1 220px"}}/>
+    <select aria-label="Invitation role" value={inviteRole} onChange={event=>setInviteRole(event.target.value)} style={{...inputStyle,width:"auto"}}><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select>
+    <button type="submit" style={buttonStyle} disabled={busy||!inviteEmail.trim()}>{busy?"Creating…":"Create invitation"}</button>
+  </form>
+  {createdInviteLink&&<div style={{padding:12,border:"1px solid var(--line,#303638)",borderRadius:10,marginBottom:12}}><b style={{fontSize:13}}>Share this invitation link</b><p style={{fontSize:12,color:"var(--muted,#a9b0b2)",margin:"5px 0 9px"}}>The link contains a one-time secret. Share it only with the intended recipient. It expires after 7 days.</p><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><input readOnly aria-label="Invitation link" value={createdInviteLink} style={{...inputStyle,flex:"1 1 240px"}}/><button type="button" style={buttonStyle} onClick={()=>navigator.clipboard?.writeText(createdInviteLink).then(()=>setNotice("Invitation link copied."),()=>setNotice("Could not copy link. Select and copy it manually."))}>Copy link</button></div></div>}
+  {invitationLoading?<p className="empty-state">Loading invitations…</p>:invitations.map(invite=><div key={invite.id} style={{display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",flexWrap:"wrap",padding:"10px 0",borderTop:"1px solid var(--line,#303638)"}}><div><b>{invite.email}</b><div style={{fontSize:12,color:"var(--muted,#a9b0b2)"}}>{invite.role} · {invite.status} · expires {new Date(invite.expires_at).toLocaleDateString()}</div></div>{invite.status==="pending"&&<button type="button" className="icon-button" disabled={busy} title="Cancel invitation" aria-label={"Cancel invitation for "+invite.email} onClick={()=>cancelWorkspaceInvitation(invite)}><Trash2 size={14}/></button>}</div>)}
+  {!invitationLoading&&!invitations.length&&<p className="empty-state">No invitations yet.</p>}
+  <form onSubmit={acceptWorkspaceInvitation} style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:16,borderTop:"1px solid var(--line,#303638)",paddingTop:14}}>
+    <input aria-label="Invitation token" placeholder="Paste an invitation token to accept" value={invitationToken} onChange={event=>setInvitationToken(event.target.value)} style={{...inputStyle,flex:"1 1 240px"}}/>
+    <button type="submit" style={buttonStyle} disabled={busy||!invitationToken.trim()}>Accept invitation</button>
+  </form>
+  <p style={{fontSize:12,color:"var(--muted,#a9b0b2)",marginBottom:0}}>Email delivery is not connected yet. Share the generated link manually. Acceptance requires signing in with the invited email address.</p>
+</section>}<p style={{fontSize:12,color:"#a9b0b2",marginTop:12}}>Members must already have a DailyManager account. Owners and admins can manage projects. Members can manage tasks they created or that are assigned to them. Viewers have read-only access.</p></section></>}
         </div>
       </section>
       {commentTask && <div role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setCommentTask(null);}} style={{position:"fixed",inset:0,zIndex:110,display:"grid",placeItems:"center",padding:18,background:"#000b",backdropFilter:"blur(7px)"}}>
