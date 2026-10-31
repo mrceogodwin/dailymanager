@@ -601,7 +601,8 @@ export async function POST(request) {
         const token = randomBytes(32).toString("base64url");
         const tokenHash = createHash("sha256").update(token).digest("hex");
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-        const saved = await query("INSERT INTO workspace_invitations (workspace_id, email, role, token_hash, invited_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, role, status, expires_at, created_at", [workspaceId, email, inviteRole, tokenHash, String(user.id), expiresAt]);
+        const saved = await query("INSERT INTO workspace_invitations (workspace_id, email, role, token_hash, invited_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING id, email, role, status, expires_at, created_at", [workspaceId, email, inviteRole, tokenHash, String(user.id), expiresAt]);
+        if (!saved.rowCount) return NextResponse.json({ error: "An active invitation already exists for that email. Refresh the invitation list before trying again." }, { status: 409 });
         await recordActivity({ workspaceId, user, action: "invitation_created", entityType: "invitation", entityId: saved.rows[0].id, summary: `Created a ${inviteRole} invitation for ${email}.` });
         return NextResponse.json({ ok: true, invitation: saved.rows[0], token, delivery: "manual" }, { status: 201 });
       }
