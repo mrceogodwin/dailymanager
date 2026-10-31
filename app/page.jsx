@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, RefreshCw, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
@@ -147,6 +147,7 @@ export default function Home() {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [commentTask, setCommentTask] = useState(null);
   const [taskComments, setTaskComments] = useState([]);
+  const taskDiscussionRequest = useRef(0);
   const [taskHistory, setTaskHistory] = useState([]);
   const [commentDraft, setCommentDraft] = useState("");
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -411,7 +412,9 @@ export default function Home() {
       setActivityItems([]);
       setTaskComments([]);
       setTaskHistory([]);
+      taskDiscussionRequest.current += 1;
       setCommentTask(null);
+      setCommentsLoading(false);
       setEditingTaskId(null);
       setEditingNoteId(null);
       setEditingProjectId(null);
@@ -740,6 +743,7 @@ export default function Home() {
   }
 
   async function openTaskComments(task) {
+    const requestId = ++taskDiscussionRequest.current;
     setCommentTask(task);
     setTaskComments([]);
     setTaskHistory([]);
@@ -747,12 +751,13 @@ export default function Home() {
     setCommentsLoading(true);
     try {
       const data = await api(`/api/workspace?task_id=${encodeURIComponent(task.id)}`);
+      if (requestId !== taskDiscussionRequest.current) return;
       setTaskComments(data.comments || []);
       setTaskHistory(data.history || []);
     } catch (error) {
-      setNotice(error.message || "Could not load task discussion.");
+      if (requestId === taskDiscussionRequest.current) setNotice(error.message || "Could not load task discussion.");
     } finally {
-      setCommentsLoading(false);
+      if (requestId === taskDiscussionRequest.current) setCommentsLoading(false);
     }
   }
 
