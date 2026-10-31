@@ -45,7 +45,11 @@ async function createWorkspaceNotification({ workspaceId, userId, actorId, kind,
   if (!userId || String(userId) === String(actorId)) return;
   await ensureWorkspaceNotificationsTable();
   await query(`INSERT INTO workspace_notifications (workspace_id, user_id, actor_id, kind, title, body, entity_type, entity_id)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+    SELECT $1,$2,$3,$4,$5,$6,$7,$8
+    WHERE EXISTS (
+      SELECT 1 FROM workspace_members
+      WHERE workspace_id = $1 AND user_id = $2
+    )`,
     [workspaceId, String(userId), String(actorId), kind, title, body, entityType || null, entityId == null ? null : String(entityId)]);
 }
 
