@@ -195,15 +195,19 @@ export default function Home() {
   async function markNotificationRead(id) {
     try {
       await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "notification_read", id }) });
+      const wasUnread = notifications.some(item => String(item.id) === String(id) && !item.read_at);
       setNotifications(items => items.map(item => String(item.id) === String(id) ? { ...item, read_at: item.read_at || new Date().toISOString() } : item));
-      setUnreadNotifications(count => Math.max(0, count - (notifications.find(item => String(item.id) === String(id) && !item.read_at) ? 1 : 0)));
+      if (wasUnread) setUnreadNotifications(count => Math.max(0, count - 1));
+      return true;
     } catch (error) {
       setNotice(error.message || "Could not update notification.");
+      return false;
     }
   }
 
   async function openNotification(item) {
-    await markNotificationRead(item.id);
+    const markedRead = item.read_at ? true : await markNotificationRead(item.id);
+    if (!markedRead) return;
     setNotificationsOpen(false);
     if (item.entity_type === "task" && item.entity_id) {
       const task = tasks.find(task => String(task.id) === String(item.entity_id));
