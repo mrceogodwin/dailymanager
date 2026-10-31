@@ -128,6 +128,12 @@ export default function Home() {
   const [activityError, setActivityError] = useState("");
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState("member");
+  const [invitationEmail, setInvitationEmail] = useState("");
+  const [invitationRole, setInvitationRole] = useState("member");
+  const [invitations, setInvitations] = useState([]);
+  const [invitationToken, setInvitationToken] = useState("");
+  const [createdInvitationToken, setCreatedInvitationToken] = useState("");
+  const [invitationLoading, setInvitationLoading] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [invitations, setInvitations] = useState([]);
@@ -722,6 +728,39 @@ export default function Home() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function loadWorkspaceInvitations() {
+    setInvitationLoading(true);
+    try { const data = await api("/api/workspace?invitations=1"); setInvitations(data.invitations || []); }
+    catch (error) { setNotice(error.message || "Could not load workspace invitations."); }
+    finally { setInvitationLoading(false); }
+  }
+
+  async function createWorkspaceInvitation(event) {
+    event.preventDefault(); setInvitationLoading(true); setCreatedInvitationToken("");
+    try {
+      const data = await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_create", email: invitationEmail, role: invitationRole }) });
+      setInvitationEmail(""); setCreatedInvitationToken(data.token || "");
+      setNotice("Invitation created. Copy the token and send it securely; email delivery is not configured.");
+      await loadWorkspaceInvitations();
+    } catch (error) { setNotice(error.message || "Could not create invitation."); }
+    finally { setInvitationLoading(false); }
+  }
+
+  async function cancelWorkspaceInvitation(invitation) {
+    if (!window.confirm("Cancel this pending invitation?")) return;
+    setInvitationLoading(true);
+    try { await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_cancel", id: invitation.id }) }); setNotice("Invitation cancelled."); await loadWorkspaceInvitations(); }
+    catch (error) { setNotice(error.message || "Could not cancel invitation."); }
+    finally { setInvitationLoading(false); }
+  }
+
+  async function acceptWorkspaceInvitation(event) {
+    event.preventDefault(); setInvitationLoading(true);
+    try { await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_accept", token: invitationToken }) }); setInvitationToken(""); setNotice("Invitation accepted. Switch to the joined workspace using the workspace selector."); await refresh(); }
+    catch (error) { setNotice(error.message || "Could not accept invitation."); }
+    finally { setInvitationLoading(false); }
   }
 
   async function addWorkspaceMember(event) {
