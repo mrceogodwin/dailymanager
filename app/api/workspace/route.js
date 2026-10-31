@@ -413,7 +413,14 @@ export async function POST(request) {
       );
       if (!result.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
       const statusTask = await query("SELECT title FROM tasks WHERE id = $1 AND workspace_id = $2", [body.id, workspaceId]);
-      await recordActivity({ workspaceId, user, action: "status_changed", entityType: "task", entityId: body.id, summary: `Changed task “${statusTask.rows[0]?.title || "Task"}” to ${body.status.replace("_"," ")}.` });
+      const taskTitle = statusTask.rows[0]?.title || "Task";
+      await recordActivity({ workspaceId, user, action: "status_changed", entityType: "task", entityId: body.id, summary: `Changed task “${taskTitle}” to ${body.status.replace("_"," ")}.` });
+      const recipients = [...new Set([access.task.created_by, access.task.assigned_to].filter(id => id && String(id) !== String(user.id)).map(String))];
+      await Promise.allSettled(recipients.map(userId => createWorkspaceNotification({
+        workspaceId, userId, actorId: user.id, kind: "task_status_changed",
+        title: "Task status updated", body: `“${taskTitle}” was moved to ${body.status.replace("_", " ")}.`,
+        entityType: "task", entityId: body.id
+      })));
       return NextResponse.json({ ok: true });
     }
 
