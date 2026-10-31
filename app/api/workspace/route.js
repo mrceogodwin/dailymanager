@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash, randomBytes } from "node:crypto";
 import { pool, query } from "../../../lib/db";
 import { getSessionUser } from "../../../lib/session";
 import { getWorkspaceForUser, setActiveWorkspaceForUser } from "../../../lib/workspace-context";
@@ -23,6 +24,24 @@ async function validateTaskAssignee(assigneeId, workspaceId) {
   const member = await query("SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, assigneeId]);
   if (!member.rowCount) throw Object.assign(new Error("Choose a member of this workspace."), { status: 400 });
   return String(assigneeId);
+}
+
+async function ensureWorkspaceInvitationsTable() {
+  await query(`CREATE TABLE IF NOT EXISTS workspace_invitations (
+    id BIGSERIAL PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'member', 'viewer')),
+    token_hash TEXT NOT NULL UNIQUE,
+    invited_by TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
+    expires_at TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ,
+    cancelled_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`);
+  await query("CREATE INDEX IF NOT EXISTS workspace_invitations_workspace_created_idx ON workspace_invitations (workspace_id, created_at DESC)");
+  await query("CREATE INDEX IF NOT EXISTS workspace_invitations_pending_email_idx ON workspace_invitations (LOWER(email), expires_at) WHERE status = 'pending'");
 }
 
 async function ensureWorkspaceNotificationsTable() {
@@ -114,6 +133,14 @@ export async function GET(request) {
     const workspaceId = activeWorkspace?.id;
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     const params = new URL(request.url).searchParams;
+    if (params.get("invitations") === "1") {
+      await ensureWorkspaceInvitationsTable();
+      const owner = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
+      if (String(owner.rows[0]?.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can view invitations." }, { status: 403 });
+      const invitations = await query(`SELECT id, email, role, status, expires_at, accepted_at, cancelled_at, created_at
+        FROM workspace_invitations WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT 100`, [workspaceId]);
+      return NextResponse.json({ invitations: invitations.rows });
+    }
     if (params.get("notifications") === "1") {
       await ensureWorkspaceNotificationsTable();
       const [result, unreadResult] = await Promise.all([
@@ -211,6 +238,46 @@ export async function POST(request) {
     const workspaceId = activeWorkspace?.id;
     await ensureTaskAssignmentColumn();
     if (!workspaceId) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
+    if (body.kind === "invitation_accept") {
+      const token = typeof body.token === "string" ? body.token.trim() : "";
+      if (!token || token.length > 200) return NextResponse.json({ error: "Enter a valid invitation token." }, { status: 400 });
+      await ensureWorkspaceInvitationsTable();
+      const tokenHash = createHash("sha256").update(token).digest("hex");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const invitation = await client.query(`SELECT id, workspace_id, email, role, status, expires_at
+          FROM workspace_invitations WHERE token_hash = $1 FOR UPDATE`, [tokenHash]);
+        if (!invitation.rowCount) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Invitation not found or token is invalid." }, { status: 404 });
+        }
+        const invite = invitation.rows[0];
+        if (invite.status !== "pending" || new Date(invite.expires_at).getTime() <= Date.now()) {
+          if (invite.status === "pending") await client.query("UPDATE workspace_invitations SET status = 'expired' WHERE id = $1", [invite.id]);
+          await client.query("COMMIT");
+          return NextResponse.json({ error: "This invitation has expired or is no longer active." }, { status: 410 });
+        }
+        if (String(user.email || "").trim().toLowerCase() !== String(invite.email).toLowerCase()) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "Sign in with the email address this invitation was sent to." }, { status: 403 });
+        }
+        await client.query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (workspace_id, user_id) DO NOTHING", [invite.workspace_id, user.id, invite.role]);
+        const accepted = await client.query("UPDATE workspace_invitations SET status = 'accepted', accepted_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING id", [invite.id]);
+        if (!accepted.rowCount) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({ error: "This invitation has already been used." }, { status: 409 });
+        }
+        await client.query("COMMIT");
+        await recordActivity({ workspaceId: invite.workspace_id, user, action: "invitation_accepted", entityType: "member", entityId: user.id, summary: `Accepted a workspace invitation as ${invite.role}.` });
+        return NextResponse.json({ ok: true, workspace_id: invite.workspace_id, role: invite.role });
+      } catch (error) {
+        try { await client.query("ROLLBACK"); } catch {}
+        throw error;
+      } finally {
+        client.release();
+      }
+    }
     const membership = await query("SELECT role FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, user.id]);
     const role = membership.rows[0]?.role || "member";
     const ownerResult = await query("SELECT owner_user_id FROM workspaces WHERE id = $1", [workspaceId]);
@@ -511,6 +578,36 @@ export async function POST(request) {
       );
       await recordActivity({ workspaceId, user, action: "created", entityType: "note", entityId: result.rows[0].id, summary: `Created note “${title}”.` });
       return NextResponse.json({ ok: true, id: result.rows[0].id }, { status: 201 });
+    }
+
+    if (["invitation_create", "invitation_cancel"].includes(body.kind)) {
+      const owner = await query("SELECT owner_user_id, name FROM workspaces WHERE id = $1", [workspaceId]);
+      if (String(owner.rows[0]?.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can manage invitations." }, { status: 403 });
+      await ensureWorkspaceInvitationsTable();
+      if (body.kind === "invitation_create") {
+        const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+        const inviteRole = ["admin", "member", "viewer"].includes(body.role) ? body.role : "member";
+        if (!email || email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid invitation email." }, { status: 400 });
+        const existingAccount = await query("SELECT id FROM app_users WHERE LOWER(email) = $1 LIMIT 1", [email]);
+        if (existingAccount.rowCount) {
+          const existingMember = await query("SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, existingAccount.rows[0].id]);
+          if (existingMember.rowCount) return NextResponse.json({ error: "That account is already a workspace member." }, { status: 409 });
+        }
+        const pending = await query("SELECT id FROM workspace_invitations WHERE workspace_id = $1 AND LOWER(email) = $2 AND status = 'pending' AND expires_at > NOW() LIMIT 1", [workspaceId, email]);
+        if (pending.rowCount) return NextResponse.json({ error: "An active invitation already exists for that email." }, { status: 409 });
+        const token = randomBytes(32).toString("base64url");
+        const tokenHash = createHash("sha256").update(token).digest("hex");
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const saved = await query("INSERT INTO workspace_invitations (workspace_id, email, role, token_hash, invited_by, expires_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, role, status, expires_at, created_at", [workspaceId, email, inviteRole, tokenHash, String(user.id), expiresAt]);
+        await recordActivity({ workspaceId, user, action: "invitation_created", entityType: "invitation", entityId: saved.rows[0].id, summary: `Created a ${inviteRole} invitation for ${email}.` });
+        return NextResponse.json({ ok: true, invitation: saved.rows[0], token, delivery: "manual" }, { status: 201 });
+      }
+      const id = String(body.id || "");
+      if (!id) return NextResponse.json({ error: "Invitation ID is required." }, { status: 400 });
+      const cancelled = await query("UPDATE workspace_invitations SET status = 'cancelled', cancelled_at = NOW() WHERE id = $1 AND workspace_id = $2 AND status = 'pending' RETURNING id", [id, workspaceId]);
+      if (!cancelled.rowCount) return NextResponse.json({ error: "Pending invitation not found." }, { status: 404 });
+      await recordActivity({ workspaceId, user, action: "invitation_cancelled", entityType: "invitation", entityId: id, summary: "Cancelled a pending workspace invitation." });
+      return NextResponse.json({ ok: true });
     }
 
     if (["member_add", "member_role", "member_remove"].includes(body.kind)) {
