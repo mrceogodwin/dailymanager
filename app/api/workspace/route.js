@@ -590,7 +590,7 @@ export async function POST(request) {
       if (body.kind === "invitation_create") {
         const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
         const inviteRole = ["admin", "member", "viewer"].includes(body.role) ? body.role : "member";
-        if (!email || email.length > 254 || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid invitation email." }, { status: 400 });
+        if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Enter a valid invitation email." }, { status: 400 });
         const existingAccount = await query("SELECT id FROM app_users WHERE LOWER(email) = $1 LIMIT 1", [email]);
         if (existingAccount.rowCount) {
           const existingMember = await query("SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, existingAccount.rows[0].id]);
