@@ -112,10 +112,13 @@ export async function GET(request) {
     const params = new URL(request.url).searchParams;
     if (params.get("notifications") === "1") {
       await ensureWorkspaceNotificationsTable();
-      const result = await query(`SELECT id, actor_id, kind, title, body, entity_type, entity_id, read_at, created_at
-        FROM workspace_notifications WHERE workspace_id = $1 AND user_id = $2
-        ORDER BY created_at DESC, id DESC LIMIT 50`, [workspaceId, String(user.id)]);
-      return NextResponse.json({ notifications: result.rows, unread_count: result.rows.filter(item => !item.read_at).length });
+      const [result, unreadResult] = await Promise.all([
+        query(`SELECT id, actor_id, kind, title, body, entity_type, entity_id, read_at, created_at
+          FROM workspace_notifications WHERE workspace_id = $1 AND user_id = $2
+          ORDER BY created_at DESC, id DESC LIMIT 50`, [workspaceId, String(user.id)]),
+        query("SELECT COUNT(*)::int AS count FROM workspace_notifications WHERE workspace_id = $1 AND user_id = $2 AND read_at IS NULL", [workspaceId, String(user.id)])
+      ]);
+      return NextResponse.json({ notifications: result.rows, unread_count: Number(unreadResult.rows[0]?.count || 0) });
     }
     const taskId = params.get("task_id");
     if (taskId) {
