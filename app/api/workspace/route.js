@@ -504,6 +504,7 @@ export async function POST(request) {
         const result = await query("INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (workspace_id, user_id) DO NOTHING RETURNING user_id", [workspaceId, account.rows[0].id, role]);
         if (!result.rowCount) return NextResponse.json({ error: "That account is already a workspace member." }, { status: 409 });
         await recordActivity({ workspaceId, user, action: "member_added", entityType: "member", entityId: account.rows[0].id, summary: `Added ${account.rows[0].name || account.rows[0].email} as ${role}.` });
+        await createWorkspaceNotification({ workspaceId, userId: account.rows[0].id, actorId: user.id, kind: "member_added", title: "Added to a workspace", body: `You were added to ${workspaceResult.rows[0]?.name || "a DailyManager workspace"} as ${role}.`, entityType: "member", entityId: account.rows[0].id });
         return NextResponse.json({ ok: true }, { status: 201 });
       }
 
