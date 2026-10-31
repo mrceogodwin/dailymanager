@@ -567,7 +567,6 @@ export async function POST(request) {
       const removedName = member.rows[0].name || member.rows[0].email;
       await recordActivity({ workspaceId, user, action: "member_removed", entityType: "member", entityId: body.user_id, summary: `Removed ${removedName} from the workspace.` });
       if (unassigned.rowCount) await recordActivity({ workspaceId, user, action: "assignees_cleared", entityType: "member", entityId: body.user_id, summary: `Cleared ${unassigned.rowCount} task assignment${unassigned.rowCount === 1 ? "" : "s"} previously assigned to ${removedName}.` });
-      await Promise.allSettled([createWorkspaceNotification({ workspaceId, userId: body.user_id, actorId: user.id, kind: "member_removed", title: "Workspace access removed", body: `Your access to ${workspaceResult.rows[0]?.name || "the workspace"} was removed. ${unassigned.rowCount ? `${unassigned.rowCount} task assignment${unassigned.rowCount === 1 ? " was" : "s were"} cleared.` : ""}`.trim(), entityType: "member", entityId: body.user_id })]);
       return NextResponse.json({ ok: true, unassigned_count: unassigned.rowCount });
     }
 
