@@ -272,6 +272,7 @@ export async function POST(request) {
           return NextResponse.json({ error: "This invitation has already been used." }, { status: 409 });
         }
         await client.query("COMMIT");
+        await setActiveWorkspaceForUser(user.id, invite.workspace_id);
         await recordActivity({ workspaceId: invite.workspace_id, user, action: "invitation_accepted", entityType: "member", entityId: user.id, summary: `Accepted a workspace invitation as ${invite.role}.` });
         return NextResponse.json({ ok: true, workspace_id: invite.workspace_id, role: invite.role });
       } catch (error) {
