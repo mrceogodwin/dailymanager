@@ -315,12 +315,12 @@ export async function POST(request) {
       const comment = typeof body.body === "string" ? body.body.trim() : "";
       if (!taskId) return NextResponse.json({ error: "Task ID is required." }, { status: 400 });
       if (!comment || comment.length > 5000) return NextResponse.json({ error: "Comment must contain 1–5,000 characters." }, { status: 400 });
-      const task = await query("SELECT id, title, created_by, assigned_to FROM tasks WHERE id = $1 AND workspace_id = $2", [taskId, workspaceId]);
-      if (!task.rowCount) return NextResponse.json({ error: "Task not found." }, { status: 404 });
+      const access = await requireTaskAccess(taskId);
+      if (access.error) return access.error;
       await ensureTaskCommentsTable();
       const saved = await query("INSERT INTO task_comments (workspace_id, task_id, user_id, body) VALUES ($1, $2, $3, $4) RETURNING id, task_id, user_id, body, created_at, updated_at", [workspaceId, String(user.id), comment]);
-      await recordActivity({ workspaceId, user, action: "commented", entityType: "task", entityId: taskId, summary: `Commented on task “${task.rows[0].title}”.` });
-      const recipients = [...new Set([task.rows[0].created_by, task.rows[0].assigned_to].filter(id => id && String(id) !== String(user.id)).map(String))];
+      await recordActivity({ workspaceId, user, action: "commented", entityType: "task", entityId: taskId, summary: `Commented on task “${access.task.title || "Task"}”.` });
+      const recipients = [...new Set([access.task.created_by, access.task.assigned_to].filter(id => id && String(id) !== String(user.id)).map(String))];
       await Promise.allSettled(recipients.map(userId => createWorkspaceNotification({
         workspaceId, userId, actorId: user.id, kind: "task_commented",
         title: "New task comment", body: `A team member commented on “${task.rows[0].title}”.`,
