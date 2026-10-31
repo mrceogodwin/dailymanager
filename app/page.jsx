@@ -1084,7 +1084,7 @@ export default function Home() {
                 const countedLinked=linked.filter(t=>t.status!=="cancelled");
                 const done=countedLinked.filter(t=>t.status==="done").length;
                 const open=linked.filter(t=>!["done","cancelled"].includes(t.status));
-                const overdue= open.filter(t=>t.due_at&&parseDueDate(t.due_at)<todayStart).length;
+                const overdue=open.filter(t=>{if(!t.due_at)return false;const due=parseDueDate(t.due_at);return due&&Number.isFinite(due.getTime())&&due<todayStart;}).length;
                 const progress=countedLinked.length?Math.round(done/countedLinked.length*100):0;
                 const health=overdue>0?"Needs attention":countedLinked.length&&progress===100?"Completed":countedLinked.length?"On track":"Not started";
                 const healthColor=overdue>0?"#f0a0a0":countedLinked.length&&progress===100?"#8ed9ab":countedLinked.length?"#e9c27b":"#aab2b6";
