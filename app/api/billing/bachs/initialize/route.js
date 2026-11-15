@@ -51,11 +51,11 @@ export async function POST(request) {
       metadata: { workspace_id: String(workspace.id), user_id: String(user.id), plan_interval: interval, local_reference: reference, product: "DailyManager" }
     }, { idempotencyKey: reference });
 
-    if (!checkout?.checkout_url || !checkout?.id) return NextResponse.json({ error: "Bachs did not return a valid checkout session." }, { status: 502 });
+    if (!checkout?.checkout_url) return NextResponse.json({ error: "Bachs did not return a valid checkout session." }, { status: 502 });
     await client.query(
       `INSERT INTO billing_payments (workspace_id,provider,provider_reference,amount_minor,currency,status,plan_code,raw_response)
        VALUES ($1,'bachs',$2,$3,'USD','initialized',$4,$5::jsonb)`,
-      [workspace.id, reference, amountMinor, interval, JSON.stringify({ checkout_id: checkout.id })]
+      [workspace.id, reference, amountMinor, interval, JSON.stringify({ checkout_id: checkout.id || checkout.checkout_session_id || null })]
     );
     return NextResponse.json({ checkout_url: checkout.checkout_url, reference });
   } catch (error) {
