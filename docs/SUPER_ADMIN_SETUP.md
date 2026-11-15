@@ -49,4 +49,4 @@ Subscribe at minimum to `collection.succeeded`. Bachs recommends webhook-based f
 
 ## Important launch limitation
 
-The new provider settings UI and API are committed, but they are not production-ready until migration 006 is applied, Super Admin bootstrap variables are configured, the Vercel deployment is verified, and both providers pass sandbox checkout, webhook, duplicate-delivery, failed-payment, and renewal tests. No live payment has been initiated.
+The new provider settings UI and API are committed. The Bachs integration uses the official `@bachs/sdk` package, which requires Node.js 22 or later. They are not production-ready until migration 006 is applied, Super Admin bootstrap variables are configured, the Vercel deployment is verified, and both providers pass sandbox checkout, webhook, duplicate-delivery, failed-payment, and renewal tests. No live payment has been initiated.
