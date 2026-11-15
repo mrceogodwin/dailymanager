@@ -12,6 +12,15 @@ export default function BillingReturnPage() {
     let cancelled = false;
     const params = new URLSearchParams(window.location.search);
     const reference = params.get("reference") || params.get("trxref");
+    const provider = params.get("provider");
+    const cancelled = params.get("cancelled") === "1";
+    if (provider === "bachs") {
+      setFailed(cancelled);
+      setMessage(cancelled
+        ? "Checkout was cancelled. No subscription was activated."
+        : "Checkout returned successfully. DailyManager will activate your workspace only after Bachs confirms payment through its signed webhook. You can return to the workspace; billing status will update after confirmation.");
+      return;
+    }
     if (!reference) {
       setFailed(true);
       setMessage("No payment reference was returned. Open Settings to check your billing status.");
