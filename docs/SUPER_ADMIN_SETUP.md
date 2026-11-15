@@ -13,7 +13,7 @@ Provider secrets are encrypted with AES-256-GCM before being written to Neon. Th
 
 ## Database migration
 
-The console requires `db/migrations/006_platform_admin_payment_config.sql`. Apply it only after taking a fresh Neon snapshot and checking that the production ID types still match the migration. The current Neon snapshot limit prevented creating a new pre-change snapshot during this implementation pass, so this migration has deliberately NOT been applied to production.
+The console requires `db/migrations/006_platform_admin_payment_config.sql`. Apply it only after taking a fresh Neon snapshot and checking that the production ID types still match the migration. The current Neon snapshot limit prevented creating a new manual snapshot. A separate Neon branch was created from the current production branch before the additive migration was applied; that branch is retained as a point-in-time test copy. Migration 006 has now been applied to production and its table schema has been verified.
 
 ## Paystack
 
@@ -45,7 +45,7 @@ Bachs webhook URL:
 
 `https://dailymanager-neon.vercel.app/api/billing/bachs/webhook`
 
-Subscribe at minimum to `collection.succeeded`. Bachs recommends webhook-based fulfillment, not trusting the browser redirect. Its webhook signature uses HMAC-SHA256 over `{timestamp}.{raw_body}`; the handler validates the timestamp and signature before processing. Bachs currently documents recurring subscriptions as USD-card only unless NGN recurring billing has been enabled for the merchant account. Confirm this with Bachs before using an NGN recurring product.
+Subscribe at minimum to `collection.succeeded`. Bachs recommends webhook-based fulfillment, not trusting the browser redirect. The webhook handler uses `webhooks.constructEvent` from the official `@bachs/sdk` package to verify the untouched request body and signed headers. The handler deduplicates event IDs and only activates a subscription after a verified `collection.succeeded` event. Bachs recurring subscriptions are configured as USD-only in DailyManager. Bachs documents USD card as the supported recurring subscription route for Nigerian merchants; the integration rejects NGN Bachs subscription configuration.
 
 ## Important launch limitation
 
