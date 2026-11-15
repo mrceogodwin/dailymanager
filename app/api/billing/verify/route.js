@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { pool } from "../../../../../lib/db";
-import { getSessionUser } from "../../../../../lib/session";
-import { getWorkspaceForUser } from "../../../../../lib/workspace-context";
-import { isSameOriginMutation } from "../../../../../lib/request-security";
-import { paystackRequest } from "../../../../../lib/paystack";
+import { pool } from "../../../../lib/db";
+import { getSessionUser } from "../../../../lib/session";
+import { getWorkspaceForUser } from "../../../../lib/workspace-context";
+import { isSameOriginMutation } from "../../../../lib/request-security";
+import { paystackRequest } from "../../../../lib/paystack";
 
 export const runtime = "nodejs";
 
