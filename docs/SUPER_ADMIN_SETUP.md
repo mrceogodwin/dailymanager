@@ -49,4 +49,6 @@ Subscribe at minimum to `collection.succeeded`. Bachs recommends webhook-based f
 
 ## Important launch limitation
 
+The current webhook handlers confirm initial successful checkout payments. They do not yet fully reconcile recurring renewal invoices, failed renewal attempts, grace periods, provider-side cancellations, or plan changes for either provider. Bachs documents that recurring renewals and failed-payment recovery generate additional subscription/invoice lifecycle events; these need explicit handlers and sandbox verification before recurring billing can be enabled for real workspaces.
+
 The new provider settings UI and API are committed. The Bachs integration uses the official `@bachs/sdk` package, which requires Node.js 22 or later. They are not production-ready until migration 006 is applied, Super Admin bootstrap variables are configured, the Vercel deployment is verified, and both providers pass sandbox checkout, webhook, duplicate-delivery, failed-payment, and renewal tests. No live payment has been initiated.
