@@ -5,6 +5,7 @@ import { getSessionUser } from "../../../../../lib/session";
 import { getWorkspaceForUser } from "../../../../../lib/workspace-context";
 import { isSameOriginMutation } from "../../../../../lib/request-security";
 import { decryptProviderPayload } from "../../../../../lib/provider-secrets";
+import { getProviderMode } from "../../../../../lib/provider-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export async function POST(request) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
   const interval = body?.interval === "annual" ? "annual" : body?.interval === "monthly" ? "monthly" : null;
-  const mode = process.env.NODE_ENV === "production" ? "live" : "test";
+  const mode = getProviderMode();
   const client = await pool.connect();
   try {
     const workspace = await getWorkspaceForUser(user.id);
