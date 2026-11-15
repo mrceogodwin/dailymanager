@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { Bachs } from "@bachs/sdk";
 import { pool, query } from "../../../../../lib/db";
 import { getSessionUser } from "../../../../../lib/session";
@@ -42,7 +43,7 @@ export async function POST(request) {
     if (!config.secret_key || !productId || !amountMinor) return NextResponse.json({ error: "Bachs product IDs and exact USD amounts are incomplete in Super Admin." }, { status: 503 });
     if ((config.currency || "USD").toUpperCase() !== "USD") return NextResponse.json({ error: "Bachs recurring subscriptions currently require USD unless your merchant account has NGN recurring billing enabled." }, { status: 400 });
 
-    const reference = `dm_bachs_${Date.now()}_${crypto.randomUUID().replaceAll("-", "")}`;
+    const reference = `dm_bachs_${Date.now()}_${randomUUID().replaceAll("-", "")}`;
     const bachs = new Bachs({ apiKey: config.secret_key });
     const checkout = await bachs.checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
