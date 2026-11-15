@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool, query } from "../../../../lib/db";
 import { decryptProviderPayload } from "../../../../lib/provider-secrets";
+import { getProviderMode } from "../../../../lib/provider-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export async function POST(request) {
   const rawBody = await request.text();
   let event;
   try { event = JSON.parse(rawBody); } catch { return NextResponse.json({ error: "Invalid event payload." }, { status: 400 }); }
-  const mode = process.env.NODE_ENV === "production" ? "live" : "test";
+  const mode = getProviderMode();
   let valid = false;
   try {
     const stored = await query("SELECT encrypted_payload FROM platform_payment_configs WHERE provider='paystack' AND mode=$1", [mode]);
