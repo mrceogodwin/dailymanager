@@ -23,3 +23,11 @@ Run `../schema.sql` first, then run all numbered migrations in order. Migration 
 Do not automatically execute schema migrations from a public request handler. Apply them as a controlled deployment/database operation, verify the result, then deploy application code that depends on the new schema.
 
 The current application still contains compatibility checks for older databases. They are intentionally retained until the migrations have been applied to the connected production database and verified.
+
+
+## Workspace billing foundation
+
+5. Review and run `005_workspace_billing.sql` after confirming the production workspace and billing tables use UUID workspace IDs.
+6. Verify `workspaces.trial_started_at`, the seven-day default for newly created workspaces, the additional billing customer fields, and the `billing_payments` and `billing_webhook_events` tables.
+7. Existing workspace plan and trial timestamps are preserved. The migration does not grant existing workspaces a new trial.
+8. Do not enable Paystack checkout until the Paystack secret key, approved plan codes/prices, webhook URL, and production environment variables are configured and verified. Never expose the secret key to client-side code.
