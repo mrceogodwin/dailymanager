@@ -57,7 +57,7 @@ export async function POST(request) {
     await client.query(
       `INSERT INTO billing_payments (workspace_id,provider,provider_reference,amount_minor,currency,status,plan_code,raw_response)
        VALUES ($1,'bachs',$2,$3,'USD','initialized',$4,$5::jsonb)`,
-      [workspace.id, reference, amountMinor, interval, JSON.stringify({ checkout_id: checkout.id || checkout.checkout_session_id || null })]
+      [workspace.id, reference, amountMinor, interval, JSON.stringify({ checkout_id: checkout.checkout_id || checkout.id || checkout.checkout_session_id || null })]
     );
     return NextResponse.json({ checkout_url: checkout.checkout_url, reference });
   } catch (error) {
