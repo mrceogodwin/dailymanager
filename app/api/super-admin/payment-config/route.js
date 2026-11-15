@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { query } from "../../../../../lib/db";
-import { requirePlatformAdmin } from "../../../../../lib/platform-admin";
-import { encryptProviderPayload, decryptProviderPayload } from "../../../../../lib/provider-secrets";
-import { isSameOriginMutation } from "../../../../../lib/request-security";
+import { query } from "../../../../lib/db";
+import { requirePlatformAdmin } from "../../../../lib/platform-admin";
+import { encryptProviderPayload, decryptProviderPayload } from "../../../../lib/provider-secrets";
+import { isSameOriginMutation } from "../../../../lib/request-security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
