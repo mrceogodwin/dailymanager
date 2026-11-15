@@ -34,7 +34,7 @@ export async function POST(request) {
     const type = typeof (event?.type || event?.event_type) === "string" ? (event.type || event.event_type) : "unknown";
     if (!eventId) return NextResponse.json({ error: "Missing event id." }, { status: 400 });
     const data = event.data || {};
-    const reference = data.metadata?.local_reference || data.reference || null;
+    const reference = data.metadata?.local_reference || data.reference || data.checkout_id || null;
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -51,7 +51,7 @@ export async function POST(request) {
 
       if (type === "collection.succeeded") {
         const payment = await client.query(
-          "SELECT id,workspace_id,amount_minor,currency,plan_code FROM billing_payments WHERE provider='bachs' AND provider_reference=$1 FOR UPDATE",
+          "SELECT id,workspace_id,amount_minor,currency,plan_code FROM billing_payments WHERE provider='bachs' AND (provider_reference=$1 OR raw_response->>'checkout_id'=$1) FOR UPDATE",
           [reference]
         );
         if (!payment.rowCount) throw new Error("Payment reference is not persisted yet; retry delivery.");
