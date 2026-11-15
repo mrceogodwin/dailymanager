@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function BillingReturnPage() {
-  const params = useSearchParams();
   const router = useRouter();
   const [message, setMessage] = useState("Confirming your payment securely…");
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    const params = new URLSearchParams(window.location.search);
     const reference = params.get("reference") || params.get("trxref");
     if (!reference) {
       setFailed(true);
@@ -39,7 +39,7 @@ export default function BillingReturnPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [params, router]);
+  }, [router]);
 
   return (
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "#101313", color: "#f5f7f6", fontFamily: "Arial, sans-serif" }}>
