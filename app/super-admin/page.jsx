@@ -72,6 +72,19 @@ export default function SuperAdminPage() {
         <h2 style={{ fontSize: 17, marginTop: 0 }}>Recent workspaces</h2>
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}><thead><tr>{["Workspace","Owner","Plan","Members"].map(x => <th key={x} style={{ padding: 9, color: "#9da8ab" }}>{x}</th>)}</tr></thead><tbody>{overview.workspaces.map(w => <tr key={w.id} style={{ borderTop: "1px solid #283034" }}><td style={{ padding: 9 }}>{w.name}</td><td style={{ padding: 9 }}>{w.owner_email || "—"}</td><td style={{ padding: 9 }}>{w.plan}</td><td style={{ padding: 9 }}>{w.member_count}</td></tr>)}</tbody></table>
       </section>}
+      {overview?.payments?.length > 0 && <section style={{ border: "1px solid #283034", background: "#121719", borderRadius: 16, padding: 18, marginBottom: 18, overflowX: "auto" }}>
+        <h2 style={{ fontSize: 17, marginTop: 0 }}>Recent payment activity</h2>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
+          <thead><tr>{["Workspace","Provider","Amount","Status","Date"].map(x => <th key={x} style={{ padding: 9, color: "#9da8ab", whiteSpace: "nowrap" }}>{x}</th>)}</tr></thead>
+          <tbody>{overview.payments.map((payment, index) => <tr key={payment.provider_reference || index} style={{ borderTop: "1px solid #283034" }}>
+            <td style={{ padding: 9 }}>{payment.workspace_name}</td>
+            <td style={{ padding: 9, textTransform: "capitalize" }}>{payment.provider}</td>
+            <td style={{ padding: 9, whiteSpace: "nowrap" }}>{payment.currency} {payment.currency === "NGN" ? (Number(payment.amount_minor || 0) / 100).toLocaleString("en-NG") : (Number(payment.amount_minor || 0) / 100).toFixed(2)}</td>
+            <td style={{ padding: 9 }}><span style={{ color: payment.status === "success" ? "#8fe0b0" : payment.status === "failed" ? "#ff9a9a" : "#e8c78a" }}>{payment.status}</span></td>
+            <td style={{ padding: 9, whiteSpace: "nowrap" }}>{payment.created_at ? new Date(payment.created_at).toLocaleDateString() : "—"}</td>
+          </tr>)}</tbody>
+        </table>
+      </section>}
       <section style={{ border: "1px solid #283034", background: "#121719", borderRadius: 16, padding: 18, marginBottom: 18 }}>
         <h2 style={{ fontSize: 17, marginTop: 0 }}>Payment provider configuration</h2>
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginBottom: 18 }}>
