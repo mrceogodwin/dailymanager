@@ -664,7 +664,7 @@ export default function Home() {
     finally { setBusy(false); }
   }
 
-  useEffect(() => { if (active === "Settings" && String(workspace?.owner_user_id) === String(user?.id)) loadWorkspaceInvitations(); }, [active, workspace?.id, user?.id]);
+  useEffect(() => { if (active === "Settings" && String(workspace?.owner_user_id) === String(user?.id)) loadWorkspaceInvitations(); }, [active, workspace?.id, workspace?.owner_user_id, user?.id]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("invite");
