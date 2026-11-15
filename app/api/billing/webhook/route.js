@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { pool } from "../../../../../lib/db";
-import { verifyPaystackSignature } from "../../../../../lib/paystack";
+import { pool } from "../../../../lib/db";
+import { verifyPaystackSignature } from "../../../../lib/paystack";
 
 export const runtime = "nodejs";
 
