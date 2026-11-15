@@ -6,6 +6,7 @@ import { isSameOriginMutation } from "../../../../lib/request-security";
 import { paystackRequest } from "../../../../lib/paystack";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request) {
   if (!isSameOriginMutation(request)) return NextResponse.json({ error: "This request could not be verified." }, { status: 403 });
