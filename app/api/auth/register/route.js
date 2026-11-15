@@ -46,7 +46,7 @@ export async function POST(request) {
     );
     const user = userResult.rows[0];
     const workspaceResult = await client.query(
-      "INSERT INTO workspaces (name, owner_user_id) VALUES ($1, $2) RETURNING id",
+      "INSERT INTO workspaces (name, owner_user_id, plan, trial_started_at, trial_ends_at) VALUES ($1, $2, 'free_trial', NOW(), NOW() + INTERVAL '7 days') RETURNING id",
       [`${name.split(" ")[0]}'s workspace`, user.id]
     );
     await client.query(
