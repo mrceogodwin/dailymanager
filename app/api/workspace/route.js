@@ -17,8 +17,10 @@ function parseTaskDueDate(value) {
 }
 
 async function ensureTaskAssignmentColumn() {
-  await query("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS assigned_to TEXT");
+  // Database schema is managed exclusively through versioned migrations.
+  // The required table/column is provisioned in the production Neon database.
 }
+
 async function validateTaskAssignee(assigneeId, workspaceId) {
   if (!assigneeId) return null;
   const member = await query("SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id = $2", [workspaceId, assigneeId]);
@@ -27,41 +29,15 @@ async function validateTaskAssignee(assigneeId, workspaceId) {
 }
 
 async function ensureWorkspaceInvitationsTable() {
-  await query(`CREATE TABLE IF NOT EXISTS workspace_invitations (
-    id BIGSERIAL PRIMARY KEY,
-    workspace_id TEXT NOT NULL,
-    email TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'member', 'viewer')),
-    token_hash TEXT NOT NULL UNIQUE,
-    invited_by TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
-    expires_at TIMESTAMPTZ NOT NULL,
-    accepted_at TIMESTAMPTZ,
-    cancelled_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await query("CREATE INDEX IF NOT EXISTS workspace_invitations_workspace_created_idx ON workspace_invitations (workspace_id, created_at DESC)");
-  await query("UPDATE workspace_invitations SET status = 'expired' WHERE status = 'pending' AND expires_at <= NOW()");
-  await query("CREATE UNIQUE INDEX IF NOT EXISTS workspace_invitations_one_pending_per_email_idx ON workspace_invitations (workspace_id, LOWER(email)) WHERE status = 'pending'");
-  await query("CREATE INDEX IF NOT EXISTS workspace_invitations_pending_email_idx ON workspace_invitations (LOWER(email), expires_at) WHERE status = 'pending'");
+  // Database schema is managed exclusively through versioned migrations.
+  // The required table/column is provisioned in the production Neon database.
 }
 
 async function ensureWorkspaceNotificationsTable() {
-  await query(`CREATE TABLE IF NOT EXISTS workspace_notifications (
-    id BIGSERIAL PRIMARY KEY,
-    workspace_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    actor_id TEXT,
-    kind TEXT NOT NULL,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    entity_type TEXT,
-    entity_id TEXT,
-    read_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await query("CREATE INDEX IF NOT EXISTS workspace_notifications_user_created_idx ON workspace_notifications (workspace_id, user_id, created_at DESC, id DESC)");
+  // Database schema is managed exclusively through versioned migrations.
+  // The required table/column is provisioned in the production Neon database.
 }
+
 async function createWorkspaceNotification({ workspaceId, userId, actorId, kind, title, body, entityType, entityId }) {
   if (!userId || String(userId) === String(actorId)) return;
   await ensureWorkspaceNotificationsTable();
@@ -75,45 +51,15 @@ async function createWorkspaceNotification({ workspaceId, userId, actorId, kind,
 }
 
 async function ensureTaskCommentsTable() {
-  await query(`CREATE TABLE IF NOT EXISTS task_comments (
-    id BIGSERIAL PRIMARY KEY,
-    workspace_id TEXT NOT NULL,
-    task_id TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    body TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await query("CREATE INDEX IF NOT EXISTS task_comments_task_created_idx ON task_comments (workspace_id, task_id, created_at ASC, id ASC)");
+  // Database schema is managed exclusively through versioned migrations.
+  // The required table/column is provisioned in the production Neon database.
 }
 
 async function ensureActivityTable() {
-  await query(`CREATE TABLE IF NOT EXISTS workspace_activity (
-    id BIGSERIAL PRIMARY KEY,
-    workspace_id TEXT NOT NULL,
-    actor_id TEXT,
-    actor_name TEXT NOT NULL DEFAULT 'Workspace member',
-    action TEXT NOT NULL,
-    entity_type TEXT NOT NULL,
-    entity_id TEXT,
-    summary TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  )`);
-  await query(`DO $dm$
-    BEGIN
-      IF EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = 'workspace_activity'
-          AND column_name = 'workspace_id'
-          AND data_type <> 'text'
-      ) THEN
-        ALTER TABLE workspace_activity ALTER COLUMN workspace_id TYPE TEXT USING workspace_id::text;
-      END IF;
-    END;
-  $dm$`);
-  await query("CREATE INDEX IF NOT EXISTS workspace_activity_workspace_created_idx ON workspace_activity (workspace_id, created_at DESC, id DESC)");
+  // Database schema is managed exclusively through versioned migrations.
+  // The required table/column is provisioned in the production Neon database.
 }
+
 async function recordActivity({ workspaceId, user, action, entityType, entityId, summary }) {
   try {
     await ensureActivityTable();
