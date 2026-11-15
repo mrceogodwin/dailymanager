@@ -161,7 +161,7 @@ export async function POST(request) {
       try {
         await createClient.query("BEGIN");
         const created = await createClient.query(
-          "INSERT INTO workspaces (name, owner_user_id) VALUES ($1, $2) RETURNING id",
+          "INSERT INTO workspaces (name, owner_user_id, plan, trial_started_at, trial_ends_at) VALUES ($1, $2, 'free_trial', NOW(), NOW() + INTERVAL '7 days') RETURNING id",
           [name, user.id]
         );
         createdWorkspaceId = created.rows[0].id;
