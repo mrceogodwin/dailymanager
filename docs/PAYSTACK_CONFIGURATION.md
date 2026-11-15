@@ -24,7 +24,7 @@ Register this URL in the corresponding Paystack environment:
 
 `https://dailymanager-neon.vercel.app/api/billing/webhook`
 
-The webhook validates Paystack's HMAC SHA-512 signature against the raw request body. Duplicate events are idempotent. A payment is activated only after the stored checkout reference, amount and currency are verified.
+The webhook validates Paystack's HMAC SHA-512 signature against the raw request body. Duplicate events are idempotent. Bachs uses the official `@bachs/sdk` webhook verifier and requires Node.js 22 or later. A payment is activated only after the stored checkout reference, amount and currency are verified.
 
 ## API routes
 
