@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { query } from "../../../../lib/db";
 import { getSessionUser } from "../../../../lib/session";
 import { getWorkspaceForUser } from "../../../../lib/workspace-context";
+import { getProviderMode } from "../../../../lib/provider-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET() {
     const [customer,payments,providers] = await Promise.all([
       query("SELECT status,plan_code,amount_minor,currency,billing_interval,current_period_start,current_period_end,cancel_at_period_end,cancelled_at FROM billing_customers WHERE workspace_id=$1",[workspace.id]),
       query("SELECT provider,provider_reference,amount_minor,currency,status,paid_at,created_at FROM billing_payments WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 20",[workspace.id]),
-      query("SELECT provider,mode FROM platform_payment_configs WHERE mode=$1",[process.env.NODE_ENV==="production"?"live":"test"])
+      query("SELECT provider,mode FROM platform_payment_configs WHERE mode=$1",[getProviderMode()])
     ]);
     const configured = new Set(providers.rows.map(row=>row.provider));
     return NextResponse.json({
