@@ -1069,7 +1069,7 @@ export default function Home() {
         </div>
         <div className="nav-list">{[...NAV,...MODULE_NAV].map(({label,icon:Icon})=><button key={label} type="button" aria-current={active===label?"page":undefined} className={`nav-item ${active===label?"active":""}`} onClick={()=>{setActive(label);setMobileMenuOpen(false);}}><Icon size={17} strokeWidth={1.8}/><span>{label}</span></button>)}</div>
         <div className="sidebar-bottom">
-          <div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={17}/></div><b>Make room for more</b><p>Unlock your full potential with DailyManager Pro.</p><button onClick={()=>setNotice("Billing is not connected yet.")}>Explore plans <ArrowRight size={14}/></button></div>
+          <div className="upgrade-card"><div className="upgrade-icon"><Sparkles size={17}/></div><b>Make room for more</b><p>Unlock your full potential with DailyManager Pro.</p><button onClick={()=>{setActive("Settings");setMobileMenuOpen(false);}}>Explore plans <ArrowRight size={14}/></button></div>
           
           <button className="nav-item" onClick={()=>setNotice("Help center is coming in a later stage.")}><CircleHelp size={17}/>Help & support</button>
           <div className="theme-switch-row"><span className="theme-switch-label"><Sun size={15}/> Appearance</span><button type="button" className={`theme-switch ${theme==="light"?"is-light":""}`} role="switch" aria-checked={theme==="light"} aria-label={theme==="light"?"Switch to dark appearance":"Switch to light appearance"} onClick={()=>setTheme(value=>value==="dark"?"light":"dark")}><span className="theme-switch-thumb">{theme==="light"?<Sun size={12}/>:<Moon size={12}/>}</span><span>{theme==="light"?"Light":"Dark"}</span></button></div>
