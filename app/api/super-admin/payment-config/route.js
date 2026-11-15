@@ -60,7 +60,11 @@ export async function PUT(request) {
     }
     if (!payload.secret_key) return NextResponse.json({ error: "A secret API key is required." }, { status: 400 });
     if (!payload.currency) payload.currency = provider === "bachs" ? "USD" : "NGN";
-    if (!["NGN","USD"].includes(payload.currency.toUpperCase())) return NextResponse.json({ error: "Currency must be NGN or USD." }, { status: 400 });
+    const expectedCurrency = provider === "bachs" ? "USD" : "NGN";
+    if (payload.currency.toUpperCase() !== expectedCurrency) {
+      return NextResponse.json({ error: `${provider === "bachs" ? "Bachs recurring subscriptions currently require USD" : "DailyManager Paystack billing currently supports NGN"} only.` }, { status: 400 });
+    }
+    payload.currency = expectedCurrency;
     if (provider === "bachs" && (!payload.monthly_product_id || !payload.annual_product_id)) {
       return NextResponse.json({ error: "Add both Bachs recurring product IDs before saving." }, { status: 400 });
     }
