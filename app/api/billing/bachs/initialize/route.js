@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "node:crypto";
+import { Bachs } from "@bachs/sdk";
 import { pool, query } from "../../../../../lib/db";
 import { getSessionUser } from "../../../../../lib/session";
 import { getWorkspaceForUser } from "../../../../../lib/workspace-context";
@@ -10,9 +10,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function getConfig(mode) {
-  const result = await query("SELECT encrypted_payload FROM platform_payment_configs WHERE provider = 'bachs' AND mode = $1", [mode]);
+  const result = await query("SELECT encrypted_payload FROM platform_payment_configs WHERE provider='bachs' AND mode=$1", [mode]);
   if (!result.rowCount) throw Object.assign(new Error("Bachs is not configured for this environment yet."), { status: 503 });
   return decryptProviderPayload(result.rows[0].encrypted_payload);
+}
+
+function toMinorUnits(value) {
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,2}))?$/.exec(String(value || "").trim());
+  if (!match) return null;
+  return Number(match[1]) * 100 + Number((match[2] || "").padEnd(2, "0"));
 }
 
 export async function POST(request) {
@@ -30,42 +36,30 @@ export async function POST(request) {
     if (String(workspace.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can manage billing." }, { status: 403 });
     if (!interval) return NextResponse.json({ error: "Choose a valid billing interval." }, { status: 400 });
     const config = await getConfig(mode);
-    if (!config.secret_key || !config[interval === "annual" ? "annual_product_id" : "monthly_product_id"]) {
-      return NextResponse.json({ error: "Bachs product configuration is incomplete." }, { status: 503 });
-    }
-    if ((config.currency || "USD").toUpperCase() !== "USD") {
-      return NextResponse.json({ error: "Bachs recurring subscriptions currently require USD unless NGN recurring billing is enabled on your Bachs account." }, { status: 400 });
-    }
-    const reference = `dm_bachs_${Date.now()}_${randomBytes(10).toString("hex")}`;
-    const baseUrl = mode === "live" ? "https://api.bachs.io" : "https://sandbox-api.bachs.io";
-    const response = await fetch(`${baseUrl}/v1/checkout-sessions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${config.secret_key}`, "Content-Type": "application/json", "Idempotency-Key": reference },
-      body: JSON.stringify({
-        product_cart: [{ product_id: interval === "annual" ? config.annual_product_id : config.monthly_product_id, quantity: 1 }],
-        customer: { email: user.email, name: user.name || user.email },
-        billing_currency: "USD",
-        reference,
-        success_url: new URL("/billing/return?provider=bachs", request.url).toString(),
-        cancel_url: new URL("/billing/return?cancelled=1&provider=bachs", request.url).toString(),
-        metadata: { workspace_id: String(workspace.id), user_id: String(user.id), plan_interval: interval, local_reference: reference, product: "DailyManager" }
-      }),
-      cache: "no-store"
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.checkout_url || !result.checkout_id) {
-      return NextResponse.json({ error: result.message || result.error || "Bachs could not create checkout." }, { status: response.status >= 400 && response.status < 500 ? 400 : 502 });
-    }
-    const amount = Number(config[interval === "annual" ? "annual_amount" : "monthly_amount"]);
-    if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Set the matching plan amount in Super Admin before enabling checkout." }, { status: 503 });
+    const productId = config[interval === "annual" ? "annual_product_id" : "monthly_product_id"];
+    const amountMinor = toMinorUnits(config[interval === "annual" ? "annual_amount" : "monthly_amount"]);
+    if (!config.secret_key || !productId || !amountMinor) return NextResponse.json({ error: "Bachs product IDs and exact USD amounts are incomplete in Super Admin." }, { status: 503 });
+    if ((config.currency || "USD").toUpperCase() !== "USD") return NextResponse.json({ error: "Bachs recurring subscriptions currently require USD unless your merchant account has NGN recurring billing enabled." }, { status: 400 });
+
+    const reference = `dm_bachs_${Date.now()}_${crypto.randomUUID().replaceAll("-", "")}`;
+    const bachs = new Bachs({ apiKey: config.secret_key });
+    const checkout = await bachs.checkoutSessions.create({
+      product_cart: [{ product_id: productId, quantity: 1 }],
+      customer: { email: user.email, name: user.name || user.email },
+      success_url: new URL("/billing/return?provider=bachs", request.url).toString(),
+      cancel_url: new URL("/billing/return?cancelled=1&provider=bachs", request.url).toString(),
+      metadata: { workspace_id: String(workspace.id), user_id: String(user.id), plan_interval: interval, local_reference: reference, product: "DailyManager" }
+    }, { idempotencyKey: reference });
+
+    if (!checkout?.checkout_url || !checkout?.id) return NextResponse.json({ error: "Bachs did not return a valid checkout session." }, { status: 502 });
     await client.query(
-      `INSERT INTO billing_payments (workspace_id, provider, provider_reference, amount_minor, currency, status, plan_code, raw_response)
+      `INSERT INTO billing_payments (workspace_id,provider,provider_reference,amount_minor,currency,status,plan_code,raw_response)
        VALUES ($1,'bachs',$2,$3,'USD','initialized',$4,$5::jsonb)`,
-      [workspace.id, reference, Math.round(amount * 100), interval, JSON.stringify({ checkout_id: result.checkout_id })]
+      [workspace.id, reference, amountMinor, interval, JSON.stringify({ checkout_id: checkout.id })]
     );
-    return NextResponse.json({ checkout_url: result.checkout_url, reference });
+    return NextResponse.json({ checkout_url: checkout.checkout_url, reference });
   } catch (error) {
     console.error("DailyManager Bachs checkout failed", error);
-    return NextResponse.json({ error: error.message || "Could not start Bachs checkout." }, { status: error.status || 500 });
+    return NextResponse.json({ error: error.message || "Could not start Bachs checkout." }, { status: error.statusCode || error.status || 502 });
   } finally { client.release(); }
 }
