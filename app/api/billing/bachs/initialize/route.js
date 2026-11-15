@@ -48,8 +48,8 @@ export async function POST(request) {
     const checkout = await bachs.checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { email: user.email, name: user.name || user.email },
-      success_url: new URL("/billing/return?provider=bachs", request.url).toString(),
-      cancel_url: new URL("/billing/return?cancelled=1&provider=bachs", request.url).toString(),
+      success_url: new URL(`/billing/return?provider=bachs&reference=${encodeURIComponent(reference)}`, request.url).toString(),
+      cancel_url: new URL(`/billing/return?cancelled=1&provider=bachs&reference=${encodeURIComponent(reference)}`, request.url).toString(),
       metadata: { workspace_id: String(workspace.id), user_id: String(user.id), plan_interval: interval, local_reference: reference, product: "DailyManager" }
     }, { idempotencyKey: reference });
 
