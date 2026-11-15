@@ -13,6 +13,7 @@ export default function SuperAdminPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [overview, setOverview] = useState(null);
 
   async function load() {
     setError(""); setNotice("");
@@ -25,6 +26,7 @@ export default function SuperAdminPage() {
     } catch (e) { setError(e.message); }
   }
   useEffect(() => { load(); }, [provider]);
+  useEffect(() => { fetch("/api/super-admin/overview", { credentials: "same-origin", cache: "no-store" }).then(r => r.json()).then(data => { if (data && !data.error) setOverview(data); }).catch(() => {}); }, []);
 
   function update(key, value) { setValues(current => ({ ...current, [key]: value })); }
 
@@ -63,6 +65,13 @@ export default function SuperAdminPage() {
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <a href="/" style={{ color: "#aab4b7", textDecoration: "none", fontSize: 13 }}>← Back to DailyManager</a>
       <header style={{ margin: "24px 0" }}><p style={{ color: "#ff9b73", fontSize: 11, letterSpacing: 2, fontWeight: 800 }}>PLATFORM CONTROL</p><h1 style={{ fontSize: 30, margin: "6px 0" }}>Super Admin Console</h1><p style={{ color: "#9da8ab", lineHeight: 1.6 }}>Manage payment providers for every DailyManager workspace. Credentials are encrypted before being stored.</p></header>
+      {overview && <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 18 }}>
+        {Object.entries({ "Users": overview.totals.users, "Workspaces": overview.totals.workspaces, "Successful payments": overview.totals.successful_payments, "Pending payments": overview.totals.pending_payments }).map(([name,value]) => <div key={name} style={{ background: "#121719", border: "1px solid #283034", borderRadius: 13, padding: 15 }}><div style={{ color: "#9da8ab", fontSize: 12 }}>{name}</div><strong style={{ display: "block", fontSize: 24, marginTop: 6 }}>{value}</strong></div>)}
+      </section>}
+      {overview && <section style={{ border: "1px solid #283034", background: "#121719", borderRadius: 16, padding: 18, marginBottom: 18, overflowX: "auto" }}>
+        <h2 style={{ fontSize: 17, marginTop: 0 }}>Recent workspaces</h2>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}><thead><tr>{["Workspace","Owner","Plan","Members"].map(x => <th key={x} style={{ padding: 9, color: "#9da8ab" }}>{x}</th>)}</tr></thead><tbody>{overview.workspaces.map(w => <tr key={w.id} style={{ borderTop: "1px solid #283034" }}><td style={{ padding: 9 }}>{w.name}</td><td style={{ padding: 9 }}>{w.owner_email || "—"}</td><td style={{ padding: 9 }}>{w.plan}</td><td style={{ padding: 9 }}>{w.member_count}</td></tr>)}</tbody></table>
+      </section>}
       <section style={{ border: "1px solid #283034", background: "#121719", borderRadius: 16, padding: 18, marginBottom: 18 }}>
         <h2 style={{ fontSize: 17, marginTop: 0 }}>Payment provider configuration</h2>
         <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginBottom: 18 }}>
