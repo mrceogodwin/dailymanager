@@ -1,30 +1,37 @@
 # Paystack configuration
 
-DailyManager uses workspace-level subscriptions. A workspace owner starts checkout; all members share that workspace entitlement.
+DailyManager supports workspace-level subscriptions through Paystack. The platform Super Admin configures credentials and plan details in `/super-admin`; workspace owners then choose monthly or annual checkout in Workspace Settings.
 
-## Required server-only environment variables
+## One-time platform bootstrap
 
-Set these in the DailyManager Vercel project for the appropriate environments:
+See [Super Admin setup](./SUPER_ADMIN_SETUP.md). Set the bootstrap email allowlist and AES-256-GCM encryption key in Vercel. Do not place provider credentials in source code or send them in chat.
 
-- `PAYSTACK_SECRET_KEY` — Paystack secret key. Never prefix with `NEXT_PUBLIC_`.
-- `PAYSTACK_PLAN_MONTHLY` — Paystack plan code for the monthly subscription.
-- `PAYSTACK_PLAN_ANNUAL` — Paystack plan code for the annual subscription.
-- `DAILYMANAGER_PLAN_MONTHLY_AMOUNT_KOBO` — exact monthly plan amount in kobo, matching the Paystack plan.
-- `DAILYMANAGER_PLAN_ANNUAL_AMOUNT_KOBO` — exact annual plan amount in kobo, matching the Paystack plan.
-- `PAYSTACK_CALLBACK_URL` — optional; defaults to the current app origin plus `/billing/return`.
+## Configure Paystack in Super Admin
 
-Configure the webhook URL in Paystack as:
+Open `/super-admin`, select Paystack, then configure Test and Live separately:
+
+- Secret key (server-side only)
+- Optional webhook signing secret; if omitted, the secret API key is used
+- Monthly and annual Paystack plan codes
+- Exact amounts in kobo matching those plans
+- Currency
+
+Credentials are encrypted before storage in Neon and are never returned to the browser after saving.
+
+## Webhook
+
+Register this URL in the corresponding Paystack environment:
 
 `https://dailymanager-neon.vercel.app/api/billing/webhook`
 
-Use the same secret key environment as the Paystack dashboard environment where the plan codes were created. Test keys and test plan codes belong only in Preview/Development; live keys and live plan codes belong only in Production.
+The webhook validates Paystack's HMAC SHA-512 signature against the raw request body. Duplicate events are idempotent. A payment is activated only after the stored checkout reference, amount and currency are verified.
 
-## Checkout and verification
+## API routes
 
-- `POST /api/billing/initialize` — authenticated workspace owner only; accepts `monthly` or `annual`.
-- `POST /api/billing/verify` — verifies the returned reference directly with Paystack before activating a subscription.
-- `POST /api/billing/webhook` — validates Paystack's HMAC SHA-512 signature and records each event idempotently.
-- `GET /api/billing/status` — owner-only billing status and recent payments.
-- `GET /api/workspace/export` — owner-only JSON export of workspace records.
+- `POST /api/billing/initialize` — owner-only Paystack checkout.
+- `POST /api/billing/verify` — owner-only server-to-server transaction verification.
+- `POST /api/billing/webhook` — signed webhook processing.
+- `GET /api/billing/status` — owner-only billing state and payment history.
+- `GET /api/workspace/export` — owner-only workspace JSON export.
 
-No prices or plan codes are embedded in source. Checkout remains unavailable until all required environment variables and matching Paystack plans are configured. Never test with a live charge unless the owner has explicitly approved it.
+Do not initiate live charges until the schema migration is applied, Super Admin is configured, the Vercel deployment is verified, and sandbox tests pass.
