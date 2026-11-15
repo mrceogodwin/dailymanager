@@ -389,7 +389,7 @@ export async function POST(request) {
       const access = await requireTaskAccess(taskId);
       if (access.error) return access.error;
       await ensureTaskCommentsTable();
-      const saved = await query("INSERT INTO task_comments (workspace_id, task_id, user_id, body) VALUES ($1, $2, $3, $4) RETURNING id, task_id, user_id, body, created_at, updated_at", [workspaceId, String(user.id), comment]);
+      const saved = await query("INSERT INTO task_comments (workspace_id, task_id, user_id, body) VALUES ($1, $2, $3, $4) RETURNING id, task_id, user_id, body, created_at, updated_at", [workspaceId, String(taskId), String(user.id), comment]);
       await recordActivity({ workspaceId, user, action: "commented", entityType: "task", entityId: taskId, summary: `Commented on task “${access.task.title || "Task"}”.` });
       const recipients = [...new Set([access.task.created_by, access.task.assigned_to].filter(id => id && String(id) !== String(user.id)).map(String))];
       await Promise.allSettled(recipients.map(userId => createWorkspaceNotification({
