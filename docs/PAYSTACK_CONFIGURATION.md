@@ -14,7 +14,7 @@ Open `/super-admin`, select Paystack, then configure Test and Live separately:
 - Optional webhook signing secret; if omitted, the secret API key is used
 - Monthly and annual Paystack plan codes
 - Exact amounts in kobo matching those plans
-- Currency
+- Currency: NGN only in the current Paystack billing implementation
 
 Credentials are encrypted before storage in Neon and are never returned to the browser after saving.
 
@@ -34,4 +34,4 @@ The webhook validates Paystack's HMAC SHA-512 signature against the raw request 
 - `GET /api/billing/status` — owner-only billing state and payment history.
 - `GET /api/workspace/export` — owner-only workspace JSON export.
 
-Do not initiate live charges until the schema migration is applied, Super Admin is configured, the Vercel deployment is verified, and sandbox tests pass.
+Do not initiate live charges until the Super Admin bootstrap is configured, the Vercel deployment is verified, and sandbox tests pass. The current handlers confirm initial successful charges; recurring renewal, failed-payment and cancellation lifecycle reconciliation is still outstanding for both providers.
