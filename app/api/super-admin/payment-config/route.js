@@ -65,6 +65,12 @@ export async function PUT(request) {
       return NextResponse.json({ error: `${provider === "bachs" ? "Bachs recurring subscriptions currently require USD" : "DailyManager Paystack billing currently supports NGN"} only.` }, { status: 400 });
     }
     payload.currency = expectedCurrency;
+    const validAmount = value => provider === "bachs"
+      ? /^(0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$/.test(String(value || "")) && Number(value) > 0
+      : /^[1-9][0-9]*$/.test(String(value || "")) && Number.isSafeInteger(Number(value));
+    if (!validAmount(payload.monthly_amount) || !validAmount(payload.annual_amount)) {
+      return NextResponse.json({ error: provider === "bachs" ? "Enter positive monthly and annual amounts in USD." : "Enter positive monthly and annual amounts in kobo." }, { status: 400 });
+    }
     if (provider === "bachs" && (!payload.monthly_product_id || !payload.annual_product_id)) {
       return NextResponse.json({ error: "Add both Bachs recurring product IDs before saving." }, { status: 400 });
     }
