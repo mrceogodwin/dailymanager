@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { webhooks, BachsWebhookError } from "@bachs/sdk";
 import { pool, query } from "../../../../../lib/db";
 import { decryptProviderPayload } from "../../../../../lib/provider-secrets";
+import { getProviderMode } from "../../../../../lib/provider-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ function toMinorUnits(value) {
 
 export async function POST(request) {
   const raw = await request.text();
-  const mode = process.env.NODE_ENV === "production" ? "live" : "test";
+  const mode = getProviderMode();
   try {
     const configResult = await query("SELECT encrypted_payload FROM platform_payment_configs WHERE provider='bachs' AND mode=$1", [mode]);
     if (!configResult.rowCount) return NextResponse.json({ error: "Webhook not configured." }, { status: 503 });
