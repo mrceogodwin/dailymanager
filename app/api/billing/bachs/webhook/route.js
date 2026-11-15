@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { webhooks, BachsWebhookError } from "@bachs/sdk";
 import { pool, query } from "../../../../../lib/db";
-import { decryptProviderPayload } from "../../../../../lib/provider-secrets";
-import { getProviderMode } from "../../../../../lib/provider-secrets";
+import { decryptProviderPayload, getProviderMode } from "../../../../../lib/provider-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
