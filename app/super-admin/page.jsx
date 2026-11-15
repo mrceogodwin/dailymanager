@@ -50,7 +50,7 @@ export default function SuperAdminPage() {
     ? [
       ["secret_key","Secret key","password"],["webhook_secret","Webhook signing secret (optional if same as secret key)","password"],
       ["public_key","Public key (optional)","text"],["monthly_plan_code","Monthly plan code","text"],["annual_plan_code","Annual plan code","text"],
-      ["monthly_amount","Monthly amount (kobo)","text"],["annual_amount","Annual amount (kobo)","text"],["currency","Currency (NGN or USD)","text"]
+      ["monthly_amount","Monthly amount (kobo)","text"],["annual_amount","Annual amount (kobo)","text"],["currency","Currency (NGN only)","text"]
     ]
     : [
       ["secret_key","Bachs API secret key","password"],["webhook_secret","Bachs webhook signing secret","password"],
