@@ -66,7 +66,7 @@ export async function PUT(request) {
     }
     payload.currency = expectedCurrency;
     const validAmount = value => provider === "bachs"
-      ? /^(0|[1-9][0-9]*)(?:\\.[0-9]{1,2})?$/.test(String(value || "")) && Number(value) > 0
+      ? /^(0|[1-9][0-9]*)(?:\.[0-9]{1,2})?$/.test(String(value || "")) && Number(value) > 0
       : /^[1-9][0-9]*$/.test(String(value || "")) && Number.isSafeInteger(Number(value));
     if (!validAmount(payload.monthly_amount) || !validAmount(payload.annual_amount)) {
       return NextResponse.json({ error: provider === "bachs" ? "Enter positive monthly and annual amounts in USD." : "Enter positive monthly and annual amounts in kobo." }, { status: 400 });
