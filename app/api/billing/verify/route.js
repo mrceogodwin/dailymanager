@@ -34,7 +34,7 @@ export async function POST(request) {
         Number(verified.amount) !== Number(payment.rows[0].amount_minor) ||
         String(verified.currency).toUpperCase() !== String(payment.rows[0].currency).toUpperCase()) {
       await client.query(
-        "UPDATE billing_payments SET status = CASE WHEN $2 = 'success' THEN status ELSE 'failed' END, raw_response = $3::jsonb, updated_at = NOW() WHERE id = $1",
+        "UPDATE billing_payments SET status = CASE WHEN $2 IN ('failed', 'abandoned') THEN $2 ELSE status END, raw_response = $3::jsonb, updated_at = NOW() WHERE id = $1",
         [payment.rows[0].id, verified.status, JSON.stringify({ status: verified.status, gateway_response: verified.gateway_response || null })]
       );
       return NextResponse.json({ error: "Paystack could not confirm this payment." }, { status: 402 });
