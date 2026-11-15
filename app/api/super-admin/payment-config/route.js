@@ -11,8 +11,8 @@ function safeConfig(payload) {
   return {
     configured: Boolean(payload.secret_key),
     webhook_configured: Boolean(payload.webhook_secret),
-    monthly_product_configured: Boolean(payload.monthly_product_id),
-    annual_product_configured: Boolean(payload.annual_product_id),
+    monthly_product_configured: Boolean(payload.monthly_product_id || payload.monthly_plan_code),
+    annual_product_configured: Boolean(payload.annual_product_id || payload.annual_plan_code),
     currency: payload.currency || "USD",
     monthly_amount: payload.monthly_amount || "",
     annual_amount: payload.annual_amount || "",
