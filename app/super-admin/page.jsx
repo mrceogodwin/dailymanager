@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const field = { width: "100%", padding: "11px 12px", border: "1px solid #343b40", borderRadius: 10, background: "#101416", color: "#f5f7f7", marginTop: 6 };
 const label = { display: "block", color: "#d7dddd", fontSize: 13, marginBottom: 14 };
@@ -15,7 +15,7 @@ export default function SuperAdminPage() {
   const [error, setError] = useState("");
   const [overview, setOverview] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setError(""); setNotice("");
     try {
       const response = await fetch(`/api/super-admin/payment-config?provider=${provider}`, { credentials: "same-origin", cache: "no-store" });
@@ -24,8 +24,8 @@ export default function SuperAdminPage() {
       setSaved(data.configs || {});
       setValues({});
     } catch (e) { setError(e.message); }
-  }
-  useEffect(() => { load(); }, [provider]);
+  }, [provider]);
+  useEffect(() => { load(); }, [load]);
   useEffect(() => { fetch("/api/super-admin/overview", { credentials: "same-origin", cache: "no-store" }).then(r => r.json()).then(data => { if (data && !data.error) setOverview(data); }).catch(() => {}); }, []);
 
   function update(key, value) { setValues(current => ({ ...current, [key]: value })); }
