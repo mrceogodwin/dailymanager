@@ -79,7 +79,7 @@ export default function SuperAdminPage() {
         <form onSubmit={save}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "0 14px" }}>
             {keys.map(([key,title,type]) => <label key={key} style={label}>{title}
-              <input type={type} autoComplete="new-password" value={values[key] || ""} onChange={e => update(key,e.target.value)} placeholder={key.includes("secret") || key === "secret_key" ? (status.configured ? "Saved securely — enter only to replace" : "Paste credential") : (status[key] || (key === "currency" ? (provider === "bachs" ? "USD" : "NGN") : ""))} />
+              <input style={field} type={type} autoComplete="new-password" value={values[key] || ""} onChange={e => update(key,e.target.value)} placeholder={key.includes("secret") || key === "secret_key" ? (status.configured ? "Saved securely — enter only to replace" : "Paste credential") : (status[key] || (key === "currency" ? (provider === "bachs" ? "USD" : "NGN") : ""))} />
             </label>)}
           </div>
           {provider === "bachs" && <p style={{ color: "#b4bec0", fontSize: 12, lineHeight: 1.6 }}>Bachs recurring products must be created in your Bachs dashboard first. Subscriptions currently support USD cards; NGN recurring billing requires Bachs to enable it on your account.</p>}
