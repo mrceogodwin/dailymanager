@@ -56,8 +56,7 @@ export async function POST(request) {
         );
         if (!payment.rowCount) throw new Error("Payment reference is not persisted yet; retry delivery.");
         const amountMinor = toMinorUnits(data.amount);
-        if (String(data.status || "").toUpperCase() !== "SUCCEEDED" ||
-            amountMinor !== Number(payment.rows[0].amount_minor) ||
+        if (amountMinor !== Number(payment.rows[0].amount_minor) ||
             String(data.currency || "").toUpperCase() !== String(payment.rows[0].currency).toUpperCase()) {
           throw new Error("Bachs payment status, amount, or currency did not match the stored checkout.");
         }
