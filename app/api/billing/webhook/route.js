@@ -39,7 +39,13 @@ export async function POST(request) {
         "SELECT id, workspace_id, amount_minor, currency, plan_code FROM billing_payments WHERE provider_reference = $1 FOR UPDATE",
         [reference]
       );
-      if (payment.rowCount && Number(data.amount) === Number(payment.rows[0].amount_minor) &&
+      // Paystack can deliver the webhook before the checkout-init request has
+      // persisted its payment row. Return a retryable error instead of recording
+      // this event as processed and permanently losing a successful payment.
+      if (!payment.rowCount) {
+        throw Object.assign(new Error("Payment reference is not persisted yet; ask Paystack to retry."), { retryable: true });
+      }
+      if (Number(data.amount) === Number(payment.rows[0].amount_minor) &&
           String(data.currency).toUpperCase() === String(payment.rows[0].currency).toUpperCase()) {
         const interval = data.plan?.interval === "annually" ? "annual" : "monthly";
         await client.query(
