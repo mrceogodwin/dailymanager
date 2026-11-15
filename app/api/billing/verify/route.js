@@ -4,6 +4,7 @@ import { getSessionUser } from "../../../../lib/session";
 import { getWorkspaceForUser } from "../../../../lib/workspace-context";
 import { isSameOriginMutation } from "../../../../lib/request-security";
 import { decryptProviderPayload } from "../../../../lib/provider-secrets";
+import { getProviderMode } from "../../../../lib/provider-secrets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function POST(request) {
   const workspace = await getWorkspaceForUser(user.id);
   if (!workspace) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
   if (String(workspace.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can verify billing." }, { status: 403 });
-  const mode = process.env.NODE_ENV === "production" ? "live" : "test";
+  const mode = getProviderMode();
   const stored = await query("SELECT encrypted_payload FROM platform_payment_configs WHERE provider='paystack' AND mode=$1",[mode]);
   if (!stored.rowCount) return NextResponse.json({ error: "Paystack is not configured." }, { status: 503 });
   const config = decryptProviderPayload(stored.rows[0].encrypted_payload);
