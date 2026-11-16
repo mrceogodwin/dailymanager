@@ -13,11 +13,12 @@ export async function POST(request) {
   try { event = JSON.parse(rawBody); } catch { return NextResponse.json({ error: "Invalid event payload." }, { status: 400 }); }
   const mode = getProviderMode();
   let valid = false;
+  let providerConfig;
   try {
     const stored = await query("SELECT encrypted_payload FROM platform_payment_configs WHERE provider='paystack' AND mode=$1", [mode]);
     if (!stored.rowCount) return NextResponse.json({ error: "Webhook is not configured." }, { status: 503 });
-    const config = decryptProviderPayload(stored.rows[0].encrypted_payload);
-    const secret = config.webhook_secret || config.secret_key;
+    providerConfig = decryptProviderPayload(stored.rows[0].encrypted_payload);
+    const secret = providerConfig.webhook_secret || providerConfig.secret_key;
     const signature = request.headers.get("x-paystack-signature") || "";
     const expected = createHmac("sha512", secret).update(rawBody).digest("hex");
     const a = Buffer.from(expected, "hex"), b = Buffer.from(signature, "hex");
@@ -48,7 +49,11 @@ export async function POST(request) {
       if (Number(data.amount) !== Number(payment.rows[0].amount_minor) || String(data.currency).toUpperCase() !== String(payment.rows[0].currency).toUpperCase()) {
         throw new Error("Paystack webhook amount or currency mismatch.");
       }
-      const interval = data.plan?.interval === "annually" ? "annual" : "monthly";
+      const interval = payment.rows[0].plan_code === providerConfig.annual_plan_code ? "annual"
+        : payment.rows[0].plan_code === providerConfig.monthly_plan_code ? "monthly"
+        : data.plan?.interval === "annually" ? "annual"
+        : data.plan?.interval === "monthly" ? "monthly" : null;
+      if (!interval) throw new Error("Paystack webhook plan could not be matched to a configured billing interval.");
       await client.query("UPDATE billing_payments SET status='success',provider_transaction_id=$2,paid_at=COALESCE($3,NOW()),raw_response=$4::jsonb,updated_at=NOW() WHERE id=$1",
         [payment.rows[0].id,String(data.id || ""),data.paid_at || null,JSON.stringify({ webhook_event:type,channel:data.channel || null })]);
       await client.query(
