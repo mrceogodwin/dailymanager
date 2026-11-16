@@ -325,6 +325,7 @@ export default function Home() {
     const queued = await listOfflineMutations(user.id, workspace.id);
     setPendingSyncCount(queued.length);
     setSyncStatus(navigator.onLine ? "waiting" : "offline");
+    if (navigator.onLine) window.dispatchEvent(new Event("online"));
     setNotice("Saved on this device. It will sync automatically when you're back online.");
   }
 
@@ -422,8 +423,8 @@ export default function Home() {
         await updateQueueStatus();
       } catch (error) {
         console.warn("DailyManager offline sync paused.", error);
-        setSyncStatus("error");
         await updateQueueStatus();
+        setSyncStatus("error");
         if (!cancelled) setNotice("Sync paused. Your changes are still saved on this device and will retry when possible.");
       } finally {
         syncing = false;
