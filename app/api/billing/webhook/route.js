@@ -69,7 +69,7 @@ export async function POST(request) {
       await client.query("UPDATE billing_customers SET status='past_due',updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
     }
     if (type === "subscription.not_renew" && (subscriptionCode || customerCode)) {
-      await client.query("UPDATE billing_customers SET status='cancel_at_period_end',cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+      await client.query("UPDATE billing_customers SET status='active',cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
     }
     if (type === "subscription.disable" && (subscriptionCode || customerCode)) {
       const result = await client.query("UPDATE billing_customers SET status='cancelled',cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2)) RETURNING workspace_id", matchParams);
