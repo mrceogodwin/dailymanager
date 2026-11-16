@@ -167,8 +167,9 @@ export async function POST(request) {
       if (type === "invoice.paid") {
         const subscriptionId = data.subscription?.subscription_id || data.subscription?.id || data.subscription_id;
         const amountMinor = toMinorUnits(data.amount_paid);
-        if (!subscriptionId || !amountMinor || String(data.status || "").toLowerCase() !== "paid") {
-          throw new Error("Bachs paid invoice is missing a valid subscription, amount, or paid status.");
+        if (!subscriptionId || !amountMinor || String(data.status || "").toLowerCase() !== "paid" ||
+            String(data.currency || "").toUpperCase() !== "USD") {
+          throw new Error("Bachs paid invoice is missing a valid subscription, amount, USD currency, or paid status.");
         }
         const result = await client.query(
           `UPDATE billing_customers SET status='active',amount_minor=$2,currency=$3,
