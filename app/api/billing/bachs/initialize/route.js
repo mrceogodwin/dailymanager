@@ -49,6 +49,7 @@ export async function POST(request) {
       customer: { email: user.email, name: user.name || user.email },
       success_url: new URL(`/billing/return?provider=bachs&reference=${encodeURIComponent(reference)}`, request.url).toString(),
       cancel_url: new URL(`/billing/return?cancelled=1&provider=bachs&reference=${encodeURIComponent(reference)}`, request.url).toString(),
+      reference,
       metadata: { workspace_id: String(workspace.id), user_id: String(user.id), plan_interval: interval, local_reference: reference, product: "DailyManager" }
     }, { idempotencyKey: reference });
 
