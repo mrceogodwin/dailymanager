@@ -81,7 +81,7 @@ export async function POST(request) {
       for (const row of result.rows) await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
     }
     if (type === "invoice.update" && (subscriptionCode || customerCode) && String(data.status || "").toLowerCase() === "success") {
-      await client.query("UPDATE billing_customers SET status='active',cancel_at_period_end=FALSE,cancelled_at=NULL,updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+      await client.query("UPDATE billing_customers SET status='active',updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
     }
     await client.query("COMMIT");
     return NextResponse.json({ received:true });
