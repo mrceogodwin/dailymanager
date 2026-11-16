@@ -66,22 +66,33 @@ export async function POST(request) {
     await client.query("UPDATE billing_webhook_events SET processing_status='processed',processed_at=NOW() WHERE id=$1",[inserted.rows[0].id]);
     const subscriptionCode = data.subscription?.subscription_code || data.subscription_code || null;
     const customerCode = data.customer?.customer_code || data.customer_code || null;
-    const matchParams = [subscriptionCode, customerCode];
-    if (type === "subscription.create" && (subscriptionCode || customerCode)) {
-      await client.query("UPDATE billing_customers SET provider_subscription_id=COALESCE(provider_subscription_id,$1), provider_customer_id=COALESCE(provider_customer_id,$2), updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    const hasSubscriptionIdentity = Boolean(subscriptionCode || customerCode);
+    const identityColumn = subscriptionCode ? "provider_subscription_id" : "provider_customer_id";
+    const identityValue = subscriptionCode || customerCode;
+    async function updateMatchedSubscription(sql, extraParams = []) {
+      if (!hasSubscriptionIdentity) throw new Error("Paystack " + type + " event is missing subscription/customer identity.");
+      const result = await client.query(sql.replace("/*IDENTITY*/", identityColumn + "=$1"), [identityValue, ...extraParams]);
+      if (!result.rowCount) throw new Error("Paystack " + type + " event did not match a saved subscription; retry required.");
+      return result;
     }
-    if (type === "invoice.payment_failed" && (subscriptionCode || customerCode)) {
-      await client.query("UPDATE billing_customers SET status='past_due',updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    if (type === "subscription.create") {
+      await updateMatchedSubscription("UPDATE billing_customers SET provider_subscription_id=COALESCE($2,provider_subscription_id),provider_customer_id=COALESCE($3,provider_customer_id),updated_at=NOW() WHERE provider='paystack' AND (provider_subscription_id=$1 OR ($1 IS NULL AND provider_customer_id=$3))", [subscriptionCode, subscriptionCode, customerCode]);
     }
-    if (type === "subscription.not_renew" && (subscriptionCode || customerCode)) {
-      await client.query("UPDATE billing_customers SET status=CASE WHEN status='past_due' THEN 'past_due' ELSE 'active' END,cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    if (type === "invoice.payment_failed") {
+      await updateMatchedSubscription("UPDATE billing_customers SET status='past_due',updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
     }
-    if (type === "subscription.disable" && (subscriptionCode || customerCode)) {
-      const result = await client.query("UPDATE billing_customers SET status='cancelled',cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2)) RETURNING workspace_id", matchParams);
+    if (type === "subscription.not_renew") {
+      await updateMatchedSubscription("UPDATE billing_customers SET status='non_renewing',cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
+    }
+    if (type === "subscription.disable") {
+      const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN LOWER(COALESCE($2,''))='complete' THEN 'completed' ELSE 'cancelled' END,cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [data.status || ""]);
       for (const row of result.rows) await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
     }
-    if (type === "invoice.update" && (subscriptionCode || customerCode) && String(data.status || "").toLowerCase() === "success") {
-      await client.query("UPDATE billing_customers SET status='active',updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    if (type === "invoice.update" && hasSubscriptionIdentity && String(data.status || "").toLowerCase() === "success") {
+      const periodStart = typeof data.period_start === "string" && !Number.isNaN(Date.parse(data.period_start)) ? new Date(data.period_start).toISOString() : null;
+      const periodEnd = typeof data.period_end === "string" && !Number.isNaN(Date.parse(data.period_end)) ? new Date(data.period_end).toISOString() : null;
+      const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN cancel_at_period_end THEN 'non_renewing' ELSE 'active' END,current_period_start=COALESCE($2::timestamptz,current_period_start),current_period_end=COALESCE($3::timestamptz,current_period_end),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [periodStart, periodEnd]);
+      for (const row of result.rows) await client.query("UPDATE workspaces SET plan='team',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
     }
     await client.query("COMMIT");
     return NextResponse.json({ received:true });
