@@ -110,12 +110,19 @@ export async function POST(request) {
         );
         if (!paymentMatch.rowCount) throw new Error("Bachs subscription could not be linked to a DailyManager workspace yet.");
         const workspaceId = paymentMatch.rows[0].workspace_id;
-        const providerStatus = String(subscription.status || "active").toLowerCase();
-        const status = providerStatus === "trialing" ? "trialing"
-          : providerStatus === "past_due" ? "past_due"
-          : providerStatus === "canceled" ? "cancelled"
-          : providerStatus === "unpaid" ? "expired"
-          : providerStatus === "paused" ? "past_due" : "active";
+        const providerStatus = String(subscription.status || "").toLowerCase();
+        const statusMap = {
+          trialing: "trialing",
+          active: "active",
+          past_due: "past_due",
+          canceled: "cancelled",
+          unpaid: "expired",
+          paused: "past_due",
+        };
+        const status = statusMap[providerStatus];
+        if (!status) throw new Error(`Unsupported Bachs subscription status: ${providerStatus || "missing"}`);
+        const currency = String(subscription.currency || "").toUpperCase();
+        if (currency !== "USD") throw new Error("Bachs recurring subscription currency did not match the supported USD billing configuration.");
         const amountMinor = toMinorUnits(subscription.amount);
         const cycle = subscription.billing_cycle?.interval || paymentMatch.rows[0].plan_code || "monthly";
         const interval = String(cycle).includes("year") || String(cycle).includes("annual") ? "annual" : "monthly";
@@ -133,7 +140,7 @@ export async function POST(request) {
              current_period_end=COALESCE(EXCLUDED.current_period_end,billing_customers.current_period_end),
              cancel_at_period_end=EXCLUDED.cancel_at_period_end,cancelled_at=EXCLUDED.cancelled_at,updated_at=NOW()`,
           [workspaceId, customerId, String(subscriptionId), status, paymentMatch.rows[0].plan_code,
-            amountMinor, String(subscription.currency || "USD").toUpperCase(), interval,
+            amountMinor, currency, interval,
             subscription.current_period_start || null, subscription.current_period_end || null,
             Boolean(subscription.cancel_at_period_end), subscription.canceled_at || null]
         );
