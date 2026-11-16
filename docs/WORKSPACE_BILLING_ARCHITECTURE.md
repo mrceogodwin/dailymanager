@@ -16,7 +16,7 @@ Status: billing foundation is implemented on the development branch. Live billin
 
 - Owner-only Paystack checkout, server-side verification, webhook signature validation, payment records, billing status, and encrypted Super Admin provider configuration exist.
 - Bachs hosted recurring checkout and signed webhook verification exist. Checkout references are stored before the customer is redirected.
-- The Bachs webhook currently handles the initial `collection.succeeded` event only. Subscription-created/updated/deleted events, renewal invoices, failed-renewal state synchronization, and customer-portal management still need implementation and sandbox verification.
+- The Bachs webhook handles the initial `collection.succeeded` event and now includes handlers for subscription-created/updated/deleted and paid/failed invoice events. These lifecycle handlers still require signed sandbox event tests and reconciliation checks; customer-portal management remains unfinished.
 - Bachs recurring subscriptions are USD-only according to its current subscription API documentation. NGN cards and bank transfers can be used for one-time payments; do not enable NGN recurring billing unless Bachs confirms the capability for this merchant account.
 - The current Bachs return page is informational. A browser redirect never activates a subscription; a verified signed webhook is authoritative.
 - The latest Paystack scheduled-cancellation correction is in PR #1 and has passed GitHub CI; it has not been merged into `main`.
