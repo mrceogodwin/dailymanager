@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readLatestWorkspaceSnapshot, saveWorkspaceSnapshot, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation } from "../lib/offline-store";
+import { readLatestWorkspaceSnapshot, saveWorkspaceSnapshot, clearWorkspaceSnapshot, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation } from "../lib/offline-store";
 import {
   Activity, RefreshCw, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
@@ -585,6 +585,9 @@ export default function Home() {
     setBusy(true);
     try {
       await api("/api/auth/logout", { method: "POST", body: "{}" });
+      if (user?.id && workspace?.id) {
+        try { await clearWorkspaceSnapshot(user.id, workspace.id); } catch (storageError) { console.warn("Could not clear this device's saved workspace.", storageError); }
+      }
       setUser(null); setWorkspace(null); setWorkspaces([]); setTasks([]); setProjects([]); setNotes([]);
       setAuthMode("login");
       setNotice("You have been signed out.");
