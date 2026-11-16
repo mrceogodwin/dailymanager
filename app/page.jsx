@@ -277,35 +277,27 @@ export default function Home() {
       body: payload,
     });
     const localId = "local-" + Date.now() + "-" + Math.random().toString(16).slice(2);
-    if (payload.kind === "task") {
-      setTasks(items => [{ id: localId, title: payload.title, description: payload.description || "", due_at: payload.due_at, project_id: payload.project_id, priority: payload.priority || "medium", assigned_to: payload.assigned_to, status: "todo", _offline: true }, ...items]);
-    } else if (payload.kind === "task_update") {
-      setTasks(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, ...payload, _offline: true } : item));
-    } else if (payload.kind === "task_status") {
-      setTasks(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, status: payload.status, _offline: true } : item));
-    } else if (payload.kind === "task_delete") {
-      setTasks(items => items.filter(item => String(item.id) !== String(payload.id)));
-    } else if (payload.kind === "project") {
-      setProjects(items => [{ id: localId, name: payload.name, description: payload.description || "", status: "active", _offline: true }, ...items]);
-    } else if (payload.kind === "project_update") {
-      setProjects(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, name: payload.name, description: payload.description || "", _offline: true } : item));
-    } else if (payload.kind === "project_delete") {
-      setProjects(items => items.filter(item => String(item.id) !== String(payload.id)));
-    } else if (payload.kind === "note") {
-      setNotes(items => [{ id: localId, title: payload.title, body: payload.body || "", created_at: new Date().toISOString(), _offline: true }, ...items]);
-    } else if (payload.kind === "note_update") {
-      setNotes(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, title: payload.title, body: payload.body || "", _offline: true } : item));
-    } else if (payload.kind === "note_delete") {
-      setNotes(items => items.filter(item => String(item.id) !== String(payload.id)));
-    }
     const cached = await readLatestWorkspaceSnapshot();
-    if (cached?.data) {
-      const next = { ...cached.data };
-      if (payload.kind.startsWith("task")) next.tasks = tasks;
-      if (payload.kind.startsWith("project")) next.projects = projects;
-      if (payload.kind.startsWith("note")) next.notes = notes;
-      await saveWorkspaceSnapshot(user.id, workspace.id, next);
-    }
+    const next = cached?.data ? { ...cached.data } : {
+      user, workspace, workspaces, tasks, projects, notes, members,
+    };
+    next.tasks = [...(next.tasks || [])];
+    next.projects = [...(next.projects || [])];
+    next.notes = [...(next.notes || [])];
+    if (payload.kind === "task") next.tasks.unshift({ id: localId, title: payload.title, description: payload.description || "", due_at: payload.due_at, project_id: payload.project_id, priority: payload.priority || "medium", assigned_to: payload.assigned_to, status: "todo", _offline: true });
+    else if (payload.kind === "task_update") next.tasks = next.tasks.map(item => String(item.id) === String(payload.id) ? { ...item, ...payload, _offline: true } : item);
+    else if (payload.kind === "task_status") next.tasks = next.tasks.map(item => String(item.id) === String(payload.id) ? { ...item, status: payload.status, _offline: true } : item);
+    else if (payload.kind === "task_delete") next.tasks = next.tasks.filter(item => String(item.id) !== String(payload.id));
+    else if (payload.kind === "project") next.projects.unshift({ id: localId, name: payload.name, description: payload.description || "", status: "active", _offline: true });
+    else if (payload.kind === "project_update") next.projects = next.projects.map(item => String(item.id) === String(payload.id) ? { ...item, name: payload.name, description: payload.description || "", _offline: true } : item);
+    else if (payload.kind === "project_delete") next.projects = next.projects.filter(item => String(item.id) !== String(payload.id));
+    else if (payload.kind === "note") next.notes.unshift({ id: localId, title: payload.title, body: payload.body || "", created_at: new Date().toISOString(), _offline: true });
+    else if (payload.kind === "note_update") next.notes = next.notes.map(item => String(item.id) === String(payload.id) ? { ...item, title: payload.title, body: payload.body || "", _offline: true } : item);
+    else if (payload.kind === "note_delete") next.notes = next.notes.filter(item => String(item.id) !== String(payload.id));
+    setTasks(next.tasks);
+    setProjects(next.projects);
+    setNotes(next.notes);
+    await saveWorkspaceSnapshot(user.id, workspace.id, next);
     setNotice("Saved on this device. It will sync automatically when you're back online.");
   }
 
