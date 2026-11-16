@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { pool, query } from "../../../../lib/db";
 import { decryptProviderPayload } from "../../../../lib/provider-secrets";
 import { getProviderMode } from "../../../../lib/provider-secrets";
@@ -31,7 +31,7 @@ export async function POST(request) {
   const type = typeof event?.event === "string" ? event.event : "unknown";
   const data = event?.data || {};
   const reference = typeof data.reference === "string" ? data.reference : null;
-  const eventId = `${type}:${reference || data.id || "no-reference"}`;
+  const eventId = `${type}:${data.id || data.invoice_code || reference || createHash("sha256").update(rawBody).digest("hex")}`;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -59,6 +59,25 @@ export async function POST(request) {
       await client.query("UPDATE workspaces SET plan='team',updated_at=NOW() WHERE id=$1",[payment.rows[0].workspace_id]);
     }
     await client.query("UPDATE billing_webhook_events SET processing_status='processed',processed_at=NOW() WHERE id=$1",[inserted.rows[0].id]);
+    const subscriptionCode = data.subscription?.subscription_code || data.subscription_code || null;
+    const customerCode = data.customer?.customer_code || data.customer_code || null;
+    const matchParams = [subscriptionCode, customerCode];
+    if (type === "subscription.create" && (subscriptionCode || customerCode)) {
+      await client.query("UPDATE billing_customers SET provider_subscription_id=COALESCE(provider_subscription_id,$1), provider_customer_id=COALESCE(provider_customer_id,$2), updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    }
+    if (type === "invoice.payment_failed" && (subscriptionCode || customerCode)) {
+      await client.query("UPDATE billing_customers SET status='past_due',updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    }
+    if (type === "subscription.not_renew" && (subscriptionCode || customerCode)) {
+      await client.query("UPDATE billing_customers SET status='cancel_at_period_end',cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    }
+    if (type === "subscription.disable" && (subscriptionCode || customerCode)) {
+      const result = await client.query("UPDATE billing_customers SET status='cancelled',cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2)) RETURNING workspace_id", matchParams);
+      for (const row of result.rows) await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
+    }
+    if (type === "invoice.update" && (subscriptionCode || customerCode) && String(data.status || "").toLowerCase() === "success") {
+      await client.query("UPDATE billing_customers SET status='active',cancel_at_period_end=FALSE,cancelled_at=NULL,updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", matchParams);
+    }
     await client.query("COMMIT");
     return NextResponse.json({ received:true });
   } catch (error) {
