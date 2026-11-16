@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readLatestWorkspaceSnapshot, saveWorkspaceSnapshot, clearWorkspaceSnapshot, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation } from "../lib/offline-store";
+import { readLatestWorkspaceSnapshot, saveWorkspaceSnapshot, clearWorkspaceSnapshot, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation, remapOfflineRecordId } from "../lib/offline-store";
 import {
   Activity, RefreshCw, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
@@ -290,14 +290,15 @@ export default function Home() {
 
   async function queueOfflineWorkspaceChange(payload) {
     if (!user?.id || !workspace?.id) throw new Error("Open a workspace online before making offline changes.");
+    const localId = ["task", "project", "note"].includes(payload.kind) ? "local-" + Date.now() + "-" + Math.random().toString(16).slice(2) : null;
     await enqueueOfflineMutation({
       userId: user.id,
       workspaceId: workspace.id,
       endpoint: "/api/workspace",
       method: "POST",
       body: payload,
+      localId,
     });
-    const localId = "local-" + Date.now() + "-" + Math.random().toString(16).slice(2);
     const cached = await readLatestWorkspaceSnapshot();
     const next = cached?.data ? { ...cached.data } : {
       user, workspace, workspaces, tasks, projects, notes, members,
@@ -383,7 +384,10 @@ export default function Home() {
       try {
         const pending = await listOfflineMutations(user.id, workspace.id);
         for (const item of pending) {
-          await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
+          const result = await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
+          if (item.local_id && result?.id) {
+            await remapOfflineRecordId(user.id, workspace.id, item.local_id, String(result.id));
+          }
           await removeOfflineMutation(item.id);
         }
         if (pending.length) {
