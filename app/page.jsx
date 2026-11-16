@@ -327,17 +327,12 @@ export default function Home() {
         }
       }
     } catch (networkError) {
-      if (typeof navigator !== "undefined" && navigator.onLine) throw networkError;
-      const cached = await readLatestWorkspaceSnapshot();
-      if (!cached?.data?.user || !cached?.data?.workspace) throw networkError;
-      setUser(cached.data.user);
-      setWorkspace(cached.data.workspace);
-      setWorkspaces(cached.data.workspaces || [cached.data.workspace]);
-      setTasks(cached.data.tasks || []);
-      setProjects(cached.data.projects || []);
-      setNotes(cached.data.notes || []);
-      setMembers(cached.data.members || []);
-      setNotice("Offline mode: showing the last workspace saved on this device. Changes are limited until sync is available.");
+      // Do not restore a private workspace into an unauthenticated browser session.
+      // Existing in-memory workspace data remains usable if connectivity drops after sign-in.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setNotice("You're offline. Sign in again when connected to securely restore this workspace on this device.");
+      }
+      throw networkError;
     }
   }, []);
 
@@ -858,13 +853,7 @@ export default function Home() {
     setTasks((items) => items.map((item) => String(item.id) === String(task.id) ? { ...item, status } : item));
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       try {
-        await enqueueOfflineMutation({
-          userId: user?.id,
-          workspaceId: workspace?.id,
-          endpoint: "/api/workspace",
-          method: "POST",
-          body: { kind: "task_status", id: task.id, status },
-        });
+        await queueOfflineWorkspaceChange({ kind: "task_status", id: task.id, status });
         setNotice("Saved on this device. This task update will sync when you're online.");
       } catch (error) {
         setTasks(items => items.map(item => String(item.id) === String(task.id) ? { ...item, status: previousStatus } : item));
