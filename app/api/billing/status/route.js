@@ -15,7 +15,7 @@ export async function GET() {
     if (!workspace) return NextResponse.json({error:"Workspace not found."},{status:404});
     if (String(workspace.owner_user_id)!==String(user.id)) return NextResponse.json({error:"Only the workspace owner can view billing details."},{status:403});
     const [customer,payments,providers] = await Promise.all([
-      query("SELECT status,plan_code,amount_minor,currency,billing_interval,current_period_start,current_period_end,cancel_at_period_end,cancelled_at FROM billing_customers WHERE workspace_id=$1",[workspace.id]),
+      query("SELECT status,provider_subscription_id,plan_code,amount_minor,currency,billing_interval,current_period_start,current_period_end,cancel_at_period_end,cancelled_at FROM billing_customers WHERE workspace_id=$1",[workspace.id]),
       query("SELECT provider,provider_reference,amount_minor,currency,status,paid_at,created_at FROM billing_payments WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 20",[workspace.id]),
       query("SELECT provider,encrypted_payload FROM platform_payment_configs WHERE mode=$1",[getProviderMode()])
     ]);
@@ -35,7 +35,7 @@ export async function GET() {
     }
     return NextResponse.json({
       workspace:{id:workspace.id,name:workspace.name,plan:workspace.plan,trial_started_at:workspace.trial_started_at || null,trial_ends_at:workspace.trial_ends_at},
-      subscription:customer.rows[0] || null,
+      subscription:customer.rows[0] ? { ...customer.rows[0], can_manage_subscription: Boolean(customer.rows[0].provider_subscription_id) && !["cancelled","completed"].includes(String(customer.rows[0].status || "").toLowerCase()), provider_subscription_id: undefined } : null,
       payments:payments.rows,
       checkout_configured:{paystack:configured.has("paystack"),bachs:configured.has("bachs")}
     });
