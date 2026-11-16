@@ -960,17 +960,16 @@ export default function Home() {
   async function deleteTask(task) {
     if (!window.confirm(`Delete “${task.title}”? This cannot be undone.`)) return;
     try {
-      await api("/api/workspace", {
-        method: "POST",
-        body: JSON.stringify({ kind: "task_delete", id: task.id }),
-      });
-      setTasks(items => items.filter(item => String(item.id) !== String(task.id)));
+      const payload = { kind: "task_delete", id: task.id };
+      if (typeof navigator !== "undefined" && !navigator.onLine) await queueOfflineWorkspaceChange(payload);
+      else {
+        await api("/api/workspace", { method: "POST", body: JSON.stringify(payload) });
+        setTasks(items => items.filter(item => String(item.id) !== String(task.id)));
+        await refresh();
+        setNotice("Task deleted.");
+      }
       setSelectedTaskIds(ids => ids.filter(id => id !== String(task.id)));
-      setNotice("Task deleted.");
-      await refresh();
-    } catch (error) {
-      setNotice(error.message);
-    }
+    } catch (error) { setNotice(error.message); }
   }
 
   function editProject(project) {
@@ -982,10 +981,14 @@ export default function Home() {
   async function deleteProject(project) {
     if (!window.confirm("Delete this project? Projects with linked tasks cannot be deleted.")) return;
     try {
-      await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "project_delete", id: project.id }) });
-      setProjects(items => items.filter(item => item.id !== project.id));
-      setNotice("Project deleted.");
-      await refresh();
+      const payload = { kind: "project_delete", id: project.id };
+      if (typeof navigator !== "undefined" && !navigator.onLine) await queueOfflineWorkspaceChange(payload);
+      else {
+        await api("/api/workspace", { method: "POST", body: JSON.stringify(payload) });
+        setProjects(items => items.filter(item => item.id !== project.id));
+        setNotice("Project deleted.");
+        await refresh();
+      }
     } catch (error) { setNotice(error.message); }
   }
 
@@ -998,13 +1001,15 @@ export default function Home() {
   async function deleteNote(note) {
     if (!window.confirm("Delete this note? This cannot be undone.")) return;
     try {
-      await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "note_delete", id: note.id }) });
-      setNotes(items => items.filter(item => item.id !== note.id));
-      setNotice("Note deleted.");
-      await refresh();
-    } catch (error) {
-      setNotice(error.message);
-    }
+      const payload = { kind: "note_delete", id: note.id };
+      if (typeof navigator !== "undefined" && !navigator.onLine) await queueOfflineWorkspaceChange(payload);
+      else {
+        await api("/api/workspace", { method: "POST", body: JSON.stringify(payload) });
+        setNotes(items => items.filter(item => item.id !== note.id));
+        setNotice("Note deleted.");
+        await refresh();
+      }
+    } catch (error) { setNotice(error.message); }
   }
 
   async function toggleTask(task) {
