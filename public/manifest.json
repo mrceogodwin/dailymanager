@@ -1,0 +1,15 @@
+{
+  "id": "/",
+  "name": "DailyManager",
+  "short_name": "DailyManager",
+  "description": "Your day, projects and priorities in one workspace.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0c0d",
+  "theme_color": "#0b0c0d",
+  "orientation": "any",
+  "icons": [
+    { "src": "/icons/dailymanager.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
