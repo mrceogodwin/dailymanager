@@ -638,6 +638,10 @@ export default function Home() {
   async function logout() {
     setBusy(true);
     try {
+      if (user?.id && workspace?.id && typeof navigator !== "undefined" && navigator.onLine) {
+        const pending = await listOfflineMutations(user.id, workspace.id);
+        if (pending.length && !window.confirm("There are " + pending.length + " unsynced offline change" + (pending.length === 1 ? "" : "s") + ". Signing out will remove them from this device. Reconnect and sync first, or continue signing out?")) return;
+      }
       await api("/api/auth/logout", { method: "POST", body: "{}" });
       if (user?.id) {
         try { await clearUserDeviceData(user.id); }
