@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { readLatestWorkspaceSnapshot, saveWorkspaceSnapshot, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation } from "../lib/offline-store";
 import {
   Activity, RefreshCw, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
@@ -267,14 +268,43 @@ export default function Home() {
   }
 
   const refresh = useCallback(async () => {
-    const data = await api("/api/auth/me");
-    setUser(data.user);
-    setWorkspace(data.workspace);
-    setWorkspaces(data.workspaces || (data.workspace ? [data.workspace] : []));
-    setTasks(data.tasks || []);
-    setProjects(data.projects || []);
-    setNotes(data.notes || []);
-    setMembers(data.members || []);
+    try {
+      const data = await api("/api/auth/me");
+      setUser(data.user);
+      setWorkspace(data.workspace);
+      setWorkspaces(data.workspaces || (data.workspace ? [data.workspace] : []));
+      setTasks(data.tasks || []);
+      setProjects(data.projects || []);
+      setNotes(data.notes || []);
+      setMembers(data.members || []);
+      if (data.user?.id && data.workspace?.id) {
+        try {
+          await saveWorkspaceSnapshot(data.user.id, data.workspace.id, {
+            user: data.user,
+            workspace: data.workspace,
+            workspaces: data.workspaces || [data.workspace],
+            tasks: data.tasks || [],
+            projects: data.projects || [],
+            notes: data.notes || [],
+            members: data.members || [],
+          });
+        } catch (storageError) {
+          console.warn("DailyManager could not save the workspace to this device.", storageError);
+        }
+      }
+    } catch (networkError) {
+      if (typeof navigator !== "undefined" && navigator.onLine) throw networkError;
+      const cached = await readLatestWorkspaceSnapshot();
+      if (!cached?.data?.user || !cached?.data?.workspace) throw networkError;
+      setUser(cached.data.user);
+      setWorkspace(cached.data.workspace);
+      setWorkspaces(cached.data.workspaces || [cached.data.workspace]);
+      setTasks(cached.data.tasks || []);
+      setProjects(cached.data.projects || []);
+      setNotes(cached.data.notes || []);
+      setMembers(cached.data.members || []);
+      setNotice("Offline mode: showing the last workspace saved on this device. Changes are limited until sync is available.");
+    }
   }, []);
 
   useEffect(() => {
@@ -293,6 +323,33 @@ export default function Home() {
   useEffect(() => {
     refresh().catch(() => {}).finally(() => setLoading(false));
   }, [refresh]);
+
+  useEffect(() => {
+    if (!user?.id || !workspace?.id || typeof window === "undefined") return;
+    let syncing = false;
+    const syncPendingChanges = async () => {
+      if (!navigator.onLine || syncing) return;
+      syncing = true;
+      try {
+        const pending = await listOfflineMutations(user.id, workspace.id);
+        for (const item of pending) {
+          await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
+          await removeOfflineMutation(item.id);
+        }
+        if (pending.length) {
+          await refresh();
+          setNotice(pending.length + " offline change" + (pending.length === 1 ? "" : "s") + " synced.");
+        }
+      } catch (error) {
+        console.warn("DailyManager offline sync paused.", error);
+      } finally {
+        syncing = false;
+      }
+    };
+    window.addEventListener("online", syncPendingChanges);
+    syncPendingChanges();
+    return () => window.removeEventListener("online", syncPendingChanges);
+  }, [user?.id, workspace?.id, refresh]);
 
   useEffect(() => {
     if (user) loadNotifications();
@@ -757,6 +814,22 @@ export default function Home() {
     if (!["todo", "in_progress", "done", "cancelled"].includes(status)) return;
     const previousStatus = task.status;
     setTasks((items) => items.map((item) => String(item.id) === String(task.id) ? { ...item, status } : item));
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        await enqueueOfflineMutation({
+          userId: user?.id,
+          workspaceId: workspace?.id,
+          endpoint: "/api/workspace",
+          method: "POST",
+          body: { kind: "task_status", id: task.id, status },
+        });
+        setNotice("Saved on this device. This task update will sync when you're online.");
+      } catch (error) {
+        setTasks(items => items.map(item => String(item.id) === String(task.id) ? { ...item, status: previousStatus } : item));
+        setNotice(error.message || "Could not save this change on the device.");
+      }
+      return;
+    }
     try {
       await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "task_status", id: task.id, status }) });
       setNotice(status === "done" ? "Task completed." : status === "in_progress" ? "Task marked in progress." : status === "cancelled" ? "Task cancelled." : "Task reopened.");
