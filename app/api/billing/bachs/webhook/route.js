@@ -49,6 +49,16 @@ export async function POST(request) {
       }
 
       if (type === "collection.succeeded") {
+        // Bachs also emits this event for accepted/overpaid collections and synthetic
+        // test events. Only a real, fully succeeded charge may activate a subscription.
+        if (String(data.status || "").toUpperCase() !== "SUCCEEDED" || !data.charge_id) {
+          await client.query(
+            "UPDATE billing_webhook_events SET processing_status='ignored',processed_at=NOW() WHERE id=$1",
+            [inserted.rows[0].id]
+          );
+          await client.query("COMMIT");
+          return NextResponse.json({ received: true, ignored: true });
+        }
         const payment = await client.query(
           "SELECT id,workspace_id,amount_minor,currency,plan_code FROM billing_payments WHERE provider='bachs' AND (provider_reference=$1 OR raw_response->>'checkout_id'=$1) FOR UPDATE",
           [reference]
@@ -61,7 +71,7 @@ export async function POST(request) {
         }
         await client.query(
           "UPDATE billing_payments SET status='success',provider_transaction_id=$2,paid_at=NOW(),raw_response=$3::jsonb,updated_at=NOW() WHERE id=$1",
-          [payment.rows[0].id, String(data.charge_id || data.payment_id || eventId), JSON.stringify({ event_id: eventId, checkout_id: data.checkout_id || null })]
+          [payment.rows[0].id, String(data.charge_id), JSON.stringify({ event_id: eventId, checkout_id: data.checkout_id || null })]
         );
         const interval = payment.rows[0].plan_code === "annual" ? "annual" : "monthly";
         await client.query(
