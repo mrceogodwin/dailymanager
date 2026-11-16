@@ -267,6 +267,48 @@ export default function Home() {
     }
   }
 
+  async function queueOfflineWorkspaceChange(payload) {
+    if (!user?.id || !workspace?.id) throw new Error("Open a workspace online before making offline changes.");
+    await enqueueOfflineMutation({
+      userId: user.id,
+      workspaceId: workspace.id,
+      endpoint: "/api/workspace",
+      method: "POST",
+      body: payload,
+    });
+    const localId = "local-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+    if (payload.kind === "task") {
+      setTasks(items => [{ id: localId, title: payload.title, description: payload.description || "", due_at: payload.due_at, project_id: payload.project_id, priority: payload.priority || "medium", assigned_to: payload.assigned_to, status: "todo", _offline: true }, ...items]);
+    } else if (payload.kind === "task_update") {
+      setTasks(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, ...payload, _offline: true } : item));
+    } else if (payload.kind === "task_status") {
+      setTasks(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, status: payload.status, _offline: true } : item));
+    } else if (payload.kind === "task_delete") {
+      setTasks(items => items.filter(item => String(item.id) !== String(payload.id)));
+    } else if (payload.kind === "project") {
+      setProjects(items => [{ id: localId, name: payload.name, description: payload.description || "", status: "active", _offline: true }, ...items]);
+    } else if (payload.kind === "project_update") {
+      setProjects(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, name: payload.name, description: payload.description || "", _offline: true } : item));
+    } else if (payload.kind === "project_delete") {
+      setProjects(items => items.filter(item => String(item.id) !== String(payload.id)));
+    } else if (payload.kind === "note") {
+      setNotes(items => [{ id: localId, title: payload.title, body: payload.body || "", created_at: new Date().toISOString(), _offline: true }, ...items]);
+    } else if (payload.kind === "note_update") {
+      setNotes(items => items.map(item => String(item.id) === String(payload.id) ? { ...item, title: payload.title, body: payload.body || "", _offline: true } : item));
+    } else if (payload.kind === "note_delete") {
+      setNotes(items => items.filter(item => String(item.id) !== String(payload.id)));
+    }
+    const cached = await readLatestWorkspaceSnapshot();
+    if (cached?.data) {
+      const next = { ...cached.data };
+      if (payload.kind.startsWith("task")) next.tasks = tasks;
+      if (payload.kind.startsWith("project")) next.projects = projects;
+      if (payload.kind.startsWith("note")) next.notes = notes;
+      await saveWorkspaceSnapshot(user.id, workspace.id, next);
+    }
+    setNotice("Saved on this device. It will sync automatically when you're back online.");
+  }
+
   const refresh = useCallback(async () => {
     try {
       const data = await api("/api/auth/me");
@@ -717,9 +759,14 @@ export default function Home() {
       : { kind, ...(kind === "task_update" ? { id: editingTaskId } : {}), title: draft.title, description: draft.description, due_at: draft.due_at || null, project_id: draft.project_id || null, priority: draft.priority, assigned_to: draft.assigned_to || null };
     setBusy(true);
     try {
-      await api("/api/workspace", { method: "POST", body: JSON.stringify(payload) });
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await queueOfflineWorkspaceChange(payload);
+      } else {
+        await api("/api/workspace", { method: "POST", body: JSON.stringify(payload) });
+        await refresh();
+        setNotice((kind === "note" || kind === "note_update") ? (kind === "note_update" ? "Note updated." : "Note saved.") : (kind === "project" || kind === "project_update") ? (kind === "project_update" ? "Project updated." : "Project created.") : kind === "task_update" ? "Task updated." : "Task added.");
+      }
       setModal(""); setEditingTaskId(null); setEditingNoteId(null); setEditingProjectId(null); setDraft({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium" });
-      await refresh(); setNotice((kind === "note" || kind === "note_update") ? (kind === "note_update" ? "Note updated." : "Note saved.") : (kind === "project" || kind === "project_update") ? (kind === "project_update" ? "Project updated." : "Project created.") : kind === "task_update" ? "Task updated." : "Task added.");
     } catch (error) { setNotice(error.message); }
     finally { setBusy(false); }
   }
