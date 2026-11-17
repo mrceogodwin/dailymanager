@@ -79,6 +79,11 @@ export async function POST(request) {
         referenceProblems.push("The " + key.replaceAll("_", " ") + " section contains an invalid record.");
       }
     }
+    for (const key of ["projects", "tasks", "notes", "task_comments"]) {
+      const ids = collections[key].map(item => item?.id).filter(validId).map(String);
+      duplicateSourceIds[key] = ids.length - new Set(ids).size;
+      if (duplicateSourceIds[key] > 0) referenceProblems.push("The backup contains duplicate " + key.replaceAll("_", " ") + " IDs.");
+    }
     const projectIds = new Set(collections.projects.map(item => String(item?.id)));
     const taskIds = new Set(collections.tasks.map(item => String(item?.id)));
     for (const project of collections.projects) if (!validId(project?.id)) referenceProblems.push("A project is missing its record ID.");
