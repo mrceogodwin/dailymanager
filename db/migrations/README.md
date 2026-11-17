@@ -31,3 +31,11 @@ The current application still contains compatibility checks for older databases.
 6. Verify `workspaces.trial_started_at`, the seven-day default for newly created workspaces, the additional billing customer fields, and the `billing_payments` and `billing_webhook_events` tables.
 7. Existing workspace plan and trial timestamps are preserved. The migration does not grant existing workspaces a new trial.
 8. Do not enable Paystack checkout until the Paystack secret key, approved plan codes/prices, webhook URL, and production environment variables are configured and verified. Never expose the secret key to client-side code.
+
+
+## Paid-period expiry
+
+9. Review and run `009_billing_period_expiry.sql` after confirming the `billing_customers` table exists and uses UUID workspace IDs.
+10. Verify `billing_customers.current_period_end` and the partial expiry index exist before deploying code that reconciles expired entitlements.
+11. The application preserves Team access until the recorded paid period ends after cancellation or a failed renewal. Expired trials and expired paid periods are reconciled to the Free plan on the next authenticated workspace request.
+12. This migration is not applied automatically. Back up Neon, review the target schema, apply it deliberately, and verify the column/index before enabling the corresponding release.
