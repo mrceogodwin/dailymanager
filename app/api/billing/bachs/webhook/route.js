@@ -157,11 +157,14 @@ export async function POST(request) {
         const result = await client.query(
           `UPDATE billing_customers SET status='cancelled',cancel_at_period_end=FALSE,
              cancelled_at=COALESCE($2::timestamptz,NOW()),updated_at=NOW()
-           WHERE provider='bachs' AND provider_subscription_id=$1 RETURNING workspace_id`,
+           WHERE provider='bachs' AND provider_subscription_id=$1
+           RETURNING workspace_id,current_period_end`,
           [String(subscriptionId), data.canceled_at || data.cancelled_at || null]
         );
         if (!result.rowCount) throw new Error("Bachs cancellation could not be linked to a workspace.");
-        await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [result.rows[0].workspace_id]);
+        if (!result.rows[0].current_period_end || new Date(result.rows[0].current_period_end).getTime() <= Date.now()) {
+          await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [result.rows[0].workspace_id]);
+        }
       }
 
       if (type === "invoice.paid") {
