@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { pool } from "../../../../lib/db";
+import { pool, query } from "../../../../lib/db";
 import { createSession } from "../../../../lib/session";
 import { checkAuthRateLimit } from "../../../../lib/rate-limit";
 import { isSameOriginMutation } from "../../../../lib/request-security";
