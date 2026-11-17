@@ -68,14 +68,14 @@ export async function PUT(request) {
     const validAmount = value => provider === "bachs"
       ? /^(0|[1-9][0-9]*)(?:\.[0-9]{1,2})?$/.test(String(value || "")) && Number(value) > 0
       : /^[1-9][0-9]*$/.test(String(value || "")) && Number.isSafeInteger(Number(value));
-    if (!validAmount(payload.monthly_amount) || !validAmount(payload.annual_amount)) {
-      return NextResponse.json({ error: provider === "bachs" ? "Enter positive monthly and annual amounts in USD." : "Enter positive monthly and annual amounts in kobo." }, { status: 400 });
+    if (!validAmount(payload.monthly_amount)) {
+      return NextResponse.json({ error: provider === "bachs" ? "Enter a positive monthly amount in USD." : "Enter a positive monthly amount in kobo." }, { status: 400 });
     }
-    if (provider === "bachs" && (!payload.monthly_product_id || !payload.annual_product_id)) {
-      return NextResponse.json({ error: "Add both Bachs recurring product IDs before saving." }, { status: 400 });
+    if (provider === "bachs" && !payload.monthly_product_id) {
+      return NextResponse.json({ error: "Add the Bachs monthly recurring product ID before saving." }, { status: 400 });
     }
-    if (provider === "paystack" && (!payload.monthly_plan_code || !payload.annual_plan_code)) {
-      return NextResponse.json({ error: "Add both Paystack plan codes before saving." }, { status: 400 });
+    if (provider === "paystack" && !payload.monthly_plan_code) {
+      return NextResponse.json({ error: "Add the Paystack monthly plan code before saving." }, { status: 400 });
     }
     const encrypted = encryptProviderPayload(payload);
     await query(

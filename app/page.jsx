@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readLatestWorkspaceSnapshot, saveWorkspaceSnapshot, clearUserDeviceData, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation, remapOfflineRecordId } from "../lib/offline-store";
+import { readLatestWorkspaceSnapshot, readWorkspaceSnapshot, saveWorkspaceSnapshot, clearUserDeviceData, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation, remapOfflineRecordId, updateOfflineMutation } from "../lib/offline-store";
 import {
   Activity, RefreshCw, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
@@ -49,7 +49,7 @@ async function api(url, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+  if (!response.ok) { const error = new Error(data.error || "Something went wrong. Please try again."); error.status = response.status; throw error; }
   return data;
 }
 
@@ -139,6 +139,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [user, setUser] = useState(null);
   const [workspace, setWorkspace] = useState(null);
+  const [billingStatus, setBillingStatus] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
   const [workspaces, setWorkspaces] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -171,6 +173,7 @@ export default function Home() {
   const [draft, setDraft] = useState({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium", assigned_to: "" });
   const [notice, setNotice] = useState("");
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [failedSyncCount, setFailedSyncCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState("synced");
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -184,7 +187,6 @@ export default function Home() {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [testimonialIndex, setTestimonialIndex] = useState(0);
-  const [annualPreview, setAnnualPreview] = useState(false);
   const [taskFilter, setTaskFilter] = useState("all");
   const [taskSort, setTaskSort] = useState("due");
   const [taskTableStatusFilter, setTaskTableStatusFilter] = useState("all");
@@ -290,18 +292,29 @@ export default function Home() {
     }
   }
 
+  async function retryFailedOfflineChanges() {
+    if (!user?.id || !workspace?.id || typeof navigator === "undefined" || !navigator.onLine) { setNotice("Reconnect to the internet before retrying saved changes."); return; }
+    try {
+      const queued = await listOfflineMutations(user.id, workspace.id);
+      const failed = queued.filter(item => item.state === "failed");
+      for (const item of failed) await updateOfflineMutation(item.id, { state: "pending", last_error: "" });
+      setFailedSyncCount(0);
+      setSyncStatus("syncing");
+      window.dispatchEvent(new Event("online"));
+      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "Retrying changes waiting to sync.");
+    } catch (error) { setNotice(error.message || "Could not retry offline changes."); }
+  }
+
   async function queueOfflineWorkspaceChange(payload) {
     if (!user?.id || !workspace?.id) throw new Error("Open a workspace online before making offline changes.");
     const localId = ["task", "project", "note"].includes(payload.kind) ? "local-" + Date.now() + "-" + Math.random().toString(16).slice(2) : null;
     await enqueueOfflineMutation({
       userId: user.id,
-      workspaceId: workspace.id,
-      endpoint: "/api/workspace",
-      method: "POST",
+      workspaceId: workspace.id,      endpoint: "/api/workspace",      method: "POST",
       body: payload,
       localId,
     });
-    const cached = await readLatestWorkspaceSnapshot();
+    const cached = await readWorkspaceSnapshot(user.id, workspace.id);
     const next = cached?.data ? { ...cached.data } : {
       user, workspace, workspaces, tasks, projects, notes, members,
     };
@@ -349,6 +362,7 @@ export default function Home() {
             projects: data.projects || [],
             notes: data.notes || [],
             members: data.members || [],
+            snapshot_meta: data.snapshot_meta || null,
           });
         } catch (storageError) {
           console.warn("DailyManager could not save the workspace to this device.", storageError);
@@ -387,11 +401,15 @@ export default function Home() {
     let cancelled = false;
     const updateQueueStatus = async () => {
       try {
-        const pending = await listOfflineMutations(user.id, workspace.id);
+        const queued = await listOfflineMutations(user.id, workspace.id);
+        const pending = queued.filter(item => item.state === "pending");
+        const failed = queued.filter(item => item.state === "failed");
         if (cancelled) return;
-        setPendingSyncCount(pending.length);
-        if (!navigator.onLine) setSyncStatus(pending.length ? "offline" : "synced");
+        setPendingSyncCount(queued.length);
+        setFailedSyncCount(failed.length);
+        if (!navigator.onLine) setSyncStatus(queued.length ? "offline" : "synced");
         else if (pending.length) setSyncStatus("waiting");
+        else if (failed.length) setSyncStatus("error");
         else setSyncStatus("synced");
       } catch (error) {
         console.warn("DailyManager could not read the device sync queue.", error);
@@ -405,20 +423,37 @@ export default function Home() {
       syncing = true;
       setSyncStatus("syncing");
       try {
-        const pending = await listOfflineMutations(user.id, workspace.id);
-        setPendingSyncCount(pending.length);
+        const queued = await listOfflineMutations(user.id, workspace.id);
+        const pending = queued.filter(item => item.state === "pending");
+        setPendingSyncCount(queued.length);
+        setFailedSyncCount(queued.filter(item => item.state === "failed").length);
+        let syncedCount = 0;
         for (const item of pending) {
-          const result = await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
-          if (item.local_id && result?.id) {
-            await remapOfflineRecordId(user.id, workspace.id, item.local_id, String(result.id));
+          try {
+            const result = await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
+            if (item.local_id && result?.id) {
+              await remapOfflineRecordId(user.id, workspace.id, item.local_id, String(result.id));
+            }
+            await removeOfflineMutation(item.id);
+            syncedCount += 1;
+          } catch (itemError) {
+            const attemptCount = (item.attempt_count || 0) + 1;
+            const permanentClientError = [400, 401, 403, 404, 409, 410, 422].includes(itemError.status);
+            await updateOfflineMutation(item.id, {
+              state: permanentClientError ? "failed" : "pending",
+              attempt_count: attemptCount,
+              last_attempt_at: new Date().toISOString(),
+              last_error: itemError.message || "Sync failed."
+            });
+            if (!permanentClientError) throw itemError;
           }
-          await removeOfflineMutation(item.id);
           const remaining = await listOfflineMutations(user.id, workspace.id);
           setPendingSyncCount(remaining.length);
+          setFailedSyncCount(remaining.filter(item => item.state === "failed").length);
         }
-        if (pending.length) {
+        if (syncedCount) {
           await refresh();
-          setNotice(pending.length + " offline change" + (pending.length === 1 ? "" : "s") + " synced.");
+          setNotice(syncedCount + " offline change" + (syncedCount === 1 ? "" : "s") + " synced.");
         }
         await updateQueueStatus();
       } catch (error) {
@@ -537,9 +572,9 @@ export default function Home() {
     try {
       const endpoint = authMode === "signup" ? "/api/auth/register" : "/api/auth/login";
       const payload = authMode === "signup" ? authForm : { email: authForm.email, password: authForm.password };
-      await api(endpoint, { method: "POST", body: JSON.stringify(payload) });
+      const authResult = await api(endpoint, { method: "POST", body: JSON.stringify(payload) });
       await refresh();
-      setNotice(authMode === "signup" ? "Your workspace is ready." : "Welcome back.");
+      setNotice(authMode === "signup" ? (authResult?.verificationEmailSent ? "Your workspace is ready. Check your inbox to verify your email." : "Your workspace is ready. Email verification still needs to be configured.") : "Welcome back.");
     } catch (error) {
       setAuthError(error.message);
     } finally { setBusy(false); }
@@ -595,10 +630,8 @@ export default function Home() {
       return;
     }
     setBusy(true);
-    try {
-      await api("/api/workspace", {
-        method: "POST",
-        body: JSON.stringify({ kind: "workspace_rename", name }),
+    try {      await api("/api/workspace", {
+        method: "POST",        body: JSON.stringify({ kind: "workspace_rename", name }),
       });
       await refresh();
       setNotice("Workspace name updated.");
@@ -673,6 +706,32 @@ export default function Home() {
     }
   }
 
+  async function revokeAllSessions() {
+    if (user?.id && workspace?.id && typeof navigator !== "undefined" && navigator.onLine) {
+      try {
+        const pending = await listOfflineMutations(user.id, workspace.id);
+        if (pending.length && !window.confirm("There are " + pending.length + " unsynced offline change" + (pending.length === 1 ? "" : "s") + ". Revoking every session will clear this account's saved data from this device. Reconnect and sync first, or continue?")) return;
+      } catch (queueError) {
+        setNotice("Could not check pending offline changes. Sync or export a backup before revoking sessions.");
+        return;
+      }
+    }
+    if (!window.confirm("Sign out this account from every device, including this one? You will need to sign in again.")) return;
+    setBusy(true);
+    try {
+      await api("/api/auth/logout-all", { method: "POST", body: "{}" });
+      if (user?.id) {
+        try { await clearUserDeviceData(user.id); }
+        catch (storageError) { console.warn("Could not clear this account's saved device data.", storageError); }
+      }
+      setUser(null); setWorkspace(null); setWorkspaces([]); setTasks([]); setProjects([]); setNotes([]); setMembers([]);
+      setAuthMode("login");
+      setNotice("All sessions have been revoked. Sign in again to continue.");
+    } catch (error) {
+      setNotice(error.message || "Could not revoke all sessions. Please try again.");
+    } finally { setBusy(false); }
+  }
+
   async function logout() {
     setBusy(true);
     try {
@@ -692,6 +751,42 @@ export default function Home() {
       setNotice(error.message || "Could not sign you out. Please try again.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function exportDeviceBackup() {
+    if (!user?.id || !workspace?.id) return;
+    try {
+      const snapshot = await readWorkspaceSnapshot(user.id, workspace.id);
+      if (!snapshot?.data) {
+        setNotice("No saved device backup exists for this workspace yet. Refresh while online, then try again.");
+        return;
+      }
+      const pendingChanges = await listOfflineMutations(user.id, workspace.id);
+      const backup = {
+        format: "DailyManager on-device backup",
+        version: 1,
+        exported_at: new Date().toISOString(),
+        saved_at: snapshot.saved_at,
+        workspace_id: String(workspace.id),
+        includes_pending_offline_changes: pendingChanges.length > 0,
+        pending_offline_changes: pendingChanges,
+        snapshot: snapshot.data,
+        restore_note: "This file is a portable safety copy. It does not automatically restore or sync data when opened. Keep it private because it contains workspace information."
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `dailymanager-device-backup-${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      const completeness = snapshot.data.snapshot_meta?.complete;
+      setNotice(`Device backup downloaded. ${completeness === false ? "Warning: this snapshot is partial. " : ""}It includes ${pendingChanges.length} pending offline change(s).`);
+    } catch (error) {
+      setNotice(error.message || "Could not create a device backup.");
     }
   }
 
@@ -827,6 +922,7 @@ export default function Home() {
   }
 
   useEffect(() => { if (active === "Settings" && String(workspace?.owner_user_id) === String(user?.id)) loadWorkspaceInvitations(); }, [active, workspace?.id, workspace?.owner_user_id, user?.id]);
+  useEffect(() => { if (active === "Settings" && String(workspace?.owner_user_id) === String(user?.id)) loadBillingStatus(); }, [active, workspace?.id, workspace?.owner_user_id, user?.id]);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("invite");
@@ -859,10 +955,8 @@ export default function Home() {
     if (!window.confirm("Cancel this pending invitation?")) return;
     setInvitationLoading(true);
     try { await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_cancel", id: invitation.id }) }); setNotice("Invitation cancelled."); await loadWorkspaceInvitations(); }
-    catch (error) { setNotice(error.message || "Could not cancel invitation."); }
-    finally { setInvitationLoading(false); }
+    catch (error) { setNotice(error.message || "Could not cancel invitation."); }    finally { setInvitationLoading(false); }
   }
-
   async function acceptWorkspaceInvitation(event) {
     event.preventDefault(); setInvitationLoading(true);
     try { await api("/api/workspace", { method: "POST", body: JSON.stringify({ kind: "invitation_accept", token: invitationToken }) }); setInvitationToken(""); setNotice("Invitation accepted. You are now in the invited workspace."); await refresh(); }
@@ -1073,6 +1167,32 @@ export default function Home() {
     await updateTaskStatus(task, task.status === "done" ? "todo" : "done");
   }
 
+  async function loadBillingStatus() {
+    setBillingLoading(true);
+    try {
+      const data = await api("/api/billing/status");
+      setBillingStatus(data);
+    } catch (error) {
+      setBillingStatus(null);
+      setNotice(error.message || "Could not load billing status.");
+    } finally {
+      setBillingLoading(false);
+    }
+  }
+  async function manageSubscription() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await api("/api/billing/manage", { method: "POST", body: JSON.stringify({}) });
+      if (!result.url) throw new Error("Paystack did not return a management link.");
+      window.location.assign(result.url);
+    } catch (error) {
+      setNotice(error.message || "Could not open subscription management.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function startBillingCheckout(interval, provider = "paystack") {
     if (busy) return;
     setBusy(true);
@@ -1133,18 +1253,16 @@ export default function Home() {
       </section>
       <section className="landing-marquee"><span>ONE WORKSPACE</span><i/> <span>MORE CLARITY</span><i/> <span>LESS CONTEXT SWITCHING</span><i/> <span>REAL MOMENTUM</span><i/> <span>ONE WORKSPACE</span></section>
       <section className="landing-section feature-section" id="features"><div className="section-kicker">A SPACE THAT THINKS WITH YOU</div><div className="section-title-row"><div><h2>Not another to-do list.<br/><span>Your whole picture.</span></h2></div><p>DailyManager brings the moving pieces of your day together, so you can see what matters and move forward with confidence.</p></div>
-        <div className="feature-showcase"><article className="feature-card feature-card-large"><div className="feature-card-top"><span className="feature-symbol peach"><ListTodo size={20}/></span><span className="feature-index">01 / FOCUS</span></div><h3>Turn a busy mind into a clear next step.</h3><p>Capture tasks, set priorities and keep the important work in sight without the clutter.</p><div className="mini-task-board"><div className="mini-board-head"><b>Today's priorities</b><span>3 items</span></div><div><i className="mini-check checked"><Check size={10}/></i><span><b>Map the next release</b><small>Product studio</small></span><em>Done</em></div><div><i className="mini-check"/><span><b>Write landing page copy</b><small>Website refresh</small></span><em className="priority-high">High</em></div><div><i className="mini-check"/><span><b>Review weekly goals</b><small>Personal</small></span><em>Today</em></div></div></article>
-          <article className="feature-card feature-card-project"><div className="feature-card-top"><span className="feature-symbol lilac"><Layers size={20}/></span><span className="feature-index">02 / BUILD</span></div><h3>Projects that feel connected.</h3><p>Keep the work, deadlines and outcomes around each idea in one place.</p><div className="project-stack"><div className="project-stack-card"><span><b>Website refresh</b><small>8 tasks · Product</small></span><strong>72%</strong></div><div className="stack-progress"><i style={{width:"72%"}}/></div><div className="project-stack-card"><span className="stack-art stack-art-two">◈</span><span><b>Launch campaign</b><small>5 tasks · Marketing</small></span><strong>48%</strong></div><div className="stack-progress"><i style={{width:"48%"}}/></div><div className="project-stack-card"><span className="stack-art stack-art-three">↗</span><span><b>Client portal</b><small>12 tasks · Operations</small></span><strong>31%</strong></div><div className="stack-progress"><i style={{width:"31%"}}/></div></div></article>
+        <div className="feature-showcase"><article className="feature-card feature-card-large"><div className="feature-card-top"><span className="feature-symbol peach"><ListTodo size={20}/></span><span className="feature-index">01 / FOCUS</span></div><h3>Turn a busy mind into a clear next step.</h3><p>Capture tasks, set priorities and keep the important work in sight without the clutter.</p><div className="mini-task-board"><div className="mini-board-head"><b>Today's priorities</b><span>3 items</span></div><div><i className="mini-check checked"><Check size={10}/></i><span><b>Map the next release</b><small>Product studio</small></span><em>Done</em></div><div><i className="mini-check"/><span><b>Write landing page copy</b><small>Website refresh</small></span><em className="priority-high">High</em></div><div><i className="mini-check"/><span><b>Review weekly goals</b><small>Personal</small></span><em>Today</em></div></div></article>          <article className="feature-card feature-card-project"><div className="feature-card-top"><span className="feature-symbol lilac"><Layers size={20}/></span><span className="feature-index">02 / BUILD</span></div><h3>Projects that feel connected.</h3><p>Keep the work, deadlines and outcomes around each idea in one place.</p><div className="project-stack"><div className="project-stack-card"><span><b>Website refresh</b><small>8 tasks · Product</small></span><strong>72%</strong></div><div className="stack-progress"><i style={{width:"72%"}}/></div><div className="project-stack-card"><span className="stack-art stack-art-two">◈</span><span><b>Launch campaign</b><small>5 tasks · Marketing</small></span><strong>48%</strong></div><div className="stack-progress"><i style={{width:"48%"}}/></div><div className="project-stack-card"><span className="stack-art stack-art-three">↗</span><span><b>Client portal</b><small>12 tasks · Operations</small></span><strong>31%</strong></div><div className="stack-progress"><i style={{width:"31%"}}/></div></div></article>
           <article className="feature-card feature-card-notes"><div className="feature-card-top"><span className="feature-symbol mint"><FileText size={20}/></span><span className="feature-index">03 / REMEMBER</span></div><h3>Good ideas deserve a home.</h3><p>Keep notes and decisions close to the work they belong to.</p><div className="note-preview"><div className="note-preview-top"><span>FIELD NOTES / 04</span><span>•••</span></div><h4>Make it useful.<br/>Make it matter.</h4><p>Clarity comes from deciding what not to do, too.</p><div className="note-tags"><span>Strategy</span><span>Ideas</span><span>Personal</span></div></div></article>
         </div>
-      </section>
-      <section className="landing-workflow" id="workflow"><div className="workflow-copy"><div className="section-kicker">BUILT AROUND YOUR FLOW</div><h2>From scattered thoughts<br/>to <span>steady progress.</span></h2><p>Start with what is on your mind. Give it structure when you need it. Then spend your energy doing the work—not managing the tools.</p><div className="workflow-steps"><div><span>01</span><p><b>Capture</b><small>Get tasks, notes and ideas out of your head.</small></p><CheckCircle2 size={17}/></div><div><span>02</span><p><b>Connect</b><small>Organize your work into projects and priorities.</small></p><CheckCircle2 size={17}/></div><div><span>03</span><p><b>Move forward</b><small>See your progress and choose your next step.</small></p><CheckCircle2 size={17}/></div></div></div><div className="workflow-visual"><div className="workflow-glow"/><div className="workflow-note note-a"><span>IDEA / 001</span><b>Make the product<br/>feel effortless.</b><small>Captured just now</small></div><div className="workflow-note note-b"><span>PROJECT / ACTIVE</span><b>Launch a better<br/>workspace.</b><div className="workflow-meter"><i/></div><small>68% of milestones complete</small></div><div className="workflow-note note-c"><span>TODAY / NEXT STEP</span><b>Ship one useful thing.</b><span className="workflow-pill"><Check size={11}/> Ready to go</span></div><div className="workflow-orb"><small>MAKE<br/>MOMENTUM</small></div></div></section>
+      </section>      <section className="landing-workflow" id="workflow"><div className="workflow-copy"><div className="section-kicker">BUILT AROUND YOUR FLOW</div><h2>From scattered thoughts<br/>to <span>steady progress.</span></h2><p>Start with what is on your mind. Give it structure when you need it. Then spend your energy doing the work—not managing the tools.</p><div className="workflow-steps"><div><span>01</span><p><b>Capture</b><small>Get tasks, notes and ideas out of your head.</small></p><CheckCircle2 size={17}/></div><div><span>02</span><p><b>Connect</b><small>Organize your work into projects and priorities.</small></p><CheckCircle2 size={17}/></div><div><span>03</span><p><b>Move forward</b><small>See your progress and choose your next step.</small></p><CheckCircle2 size={17}/></div></div></div><div className="workflow-visual"><div className="workflow-glow"/><div className="workflow-note note-a"><span>IDEA / 001</span><b>Make the product<br/>feel effortless.</b><small>Captured just now</small></div><div className="workflow-note note-b"><span>PROJECT / ACTIVE</span><b>Launch a better<br/>workspace.</b><div className="workflow-meter"><i/></div><small>68% of milestones complete</small></div><div className="workflow-note note-c"><span>TODAY / NEXT STEP</span><b>Ship one useful thing.</b><span className="workflow-pill"><Check size={11}/> Ready to go</span></div><div className="workflow-orb"><small>MAKE<br/>MOMENTUM</small></div></div></section>
       <section className="landing-testimonials"><div className="testimonial-intro"><div className="section-kicker">MADE FOR YOUR KIND OF AMBITION</div><h2>A little more clarity<br/><span>changes everything.</span></h2><p>DailyManager is being built around a simple idea: your tools should support your work, not become the work.</p><div className="testimonial-controls"><button aria-label="Previous story" onClick={()=>setTestimonialIndex(i=>(i+2)%3)}>←</button><span>0{testimonialIndex+1} <i/> 03</span><button aria-label="Next story" onClick={()=>setTestimonialIndex(i=>(i+1)%3)}>→</button></div></div><div className="testimonial-stage"><div className="testimonial-glow"/><article className="testimonial-card"><div className="testimonial-stars">★★★★★</div><blockquote>{["“I want my workspace to make the next step feel obvious—not give me another thing to manage.”","“The best productivity system is the one that gives your attention back to the work you care about.”","“Big goals become less intimidating when the small, useful steps have somewhere to live.”"][testimonialIndex]}</blockquote><div className="testimonial-person"><span className={"testimonial-avatar avatar-"+testimonialIndex}>{["G","A","M"][testimonialIndex]}</span><span><b>{["The builder","The thoughtful planner","The focused creator"][testimonialIndex]}</b><small>{["Product and business","Independent professional","Creative workflow"][testimonialIndex]}</small></span></div><div className="testimonial-dots">{[0,1,2].map(i=><button key={i} aria-label={"Show story "+(i+1)} className={testimonialIndex===i?"selected":""} onClick={()=>setTestimonialIndex(i)}/>)}</div></article></div></section>
-      <section className="landing-section" id="plans"><div className="section-kicker">SIMPLE BY DESIGN</div><div className="section-title-row"><h2>A little structure.<br/><span>A lot more possibility.</span></h2><div className="billing-switch"><span>Monthly</span><button aria-label="Toggle yearly plan preview" aria-pressed={annualPreview} className={annualPreview?"is-annual":""} onClick={()=>setAnnualPreview(v=>!v)}><i/></button><span>Yearly <em>PREVIEW</em></span></div></div><div className="pricing-grid"><article className="price-card"><span className="price-eyebrow">START WITH CLARITY</span><h3>Starter</h3><p>For getting your work into one place.</p><div className="price-value"><strong>Free</strong></div><button onClick={()=>{setAuthMode("signup");document.getElementById("get-started")?.scrollIntoView({behavior:"smooth",block:"center"});}}>Get started <ArrowRight size={15}/></button><ul><li><Check size={14}/> Personal workspace</li><li><Check size={14}/> Tasks and projects</li><li><Check size={14}/> Notes and planning</li><li><Check size={14}/> Core progress overview</li></ul></article><article className="price-card price-card-featured"><span className="popular-label"><Sparkles size={12}/> YOUR NEXT LEVEL</span><span className="price-eyebrow">FOR YOUR BIGGER PLANS</span><h3>Pro</h3><p>For turning a growing workload into momentum.</p><div className="price-value"><strong>{annualPreview?"Yearly plan preview":"Monthly plan preview"}</strong></div><button onClick={()=>{setAuthMode("signup");document.getElementById("get-started")?.scrollIntoView({behavior:"smooth",block:"center"});}}>Join the early list <ArrowRight size={15}/></button><ul><li><Check size={14}/> Expanded workspace tools</li><li><Check size={14}/> Advanced insights</li><li><Check size={14}/> More customization</li><li><Check size={14}/> Future team features</li></ul><small className="price-disclaimer">Preview only. Paid billing is not active.</small></article><article className="price-card"><span className="price-eyebrow">FOR THE WAY YOU WORK</span><h3>Flexible</h3><p>A workspace that grows with your process.</p><div className="price-value"><strong>In development</strong></div><button onClick={()=>setNotice("More workspace options will be announced as they are built.")}>Explore roadmap <ArrowRight size={15}/></button><ul><li><Check size={14}/> Modular tools</li><li><Check size={14}/> Personal workflows</li><li><Check size={14}/> Connected planning</li><li><Check size={14}/> More ways to customize</li></ul></article></div></section>
+      <section className="landing-section" id="plans"><div className="section-kicker">SIMPLE BY DESIGN</div><div className="section-title-row"><h2>A little structure.<br/><span>A lot more possibility.</span></h2><div className="billing-switch"><span>Monthly plans</span></div></div><div className="pricing-grid"><article className="price-card"><span className="price-eyebrow">START WITH CLARITY</span><h3>Starter</h3><p>For getting your work into one place.</p><div className="price-value"><strong>Free</strong></div><button onClick={()=>{setAuthMode("signup");document.getElementById("get-started")?.scrollIntoView({behavior:"smooth",block:"center"});}}>Get started <ArrowRight size={15}/></button><ul><li><Check size={14}/> Personal workspace</li><li><Check size={14}/> Tasks and projects</li><li><Check size={14}/> Notes and planning</li><li><Check size={14}/> Core progress overview</li></ul></article><article className="price-card price-card-featured"><span className="popular-label"><Sparkles size={12}/> YOUR NEXT LEVEL</span><span className="price-eyebrow">FOR YOUR BIGGER PLANS</span><h3>Pro</h3><p>For turning a growing workload into momentum.</p><div className="price-value"><strong>Monthly plan preview</strong></div><button onClick={()=>{setAuthMode("signup");document.getElementById("get-started")?.scrollIntoView({behavior:"smooth",block:"center"});}}>Join the early list <ArrowRight size={15}/></button><ul><li><Check size={14}/> Expanded workspace tools</li><li><Check size={14}/> Advanced insights</li><li><Check size={14}/> More customization</li><li><Check size={14}/> Future team features</li></ul><small className="price-disclaimer">Preview only. Paid billing is not active.</small></article><article className="price-card"><span className="price-eyebrow">FOR THE WAY YOU WORK</span><h3>Flexible</h3><p>A workspace that grows with your process.</p><div className="price-value"><strong>In development</strong></div><button onClick={()=>setNotice("More workspace options will be announced as they are built.")}>Explore roadmap <ArrowRight size={15}/></button><ul><li><Check size={14}/> Modular tools</li><li><Check size={14}/> Personal workflows</li><li><Check size={14}/> Connected planning</li><li><Check size={14}/> More ways to customize</li></ul></article></div></section>
       <section className="landing-bottom-cta"><div><div className="section-kicker">YOUR NEXT CHAPTER STARTS HERE</div><h2>Make space for <span>big things.</span></h2><p>Build a workspace that helps your ambition feel a little more manageable.</p></div><button onClick={()=>{setAuthMode("signup");document.getElementById("get-started")?.scrollIntoView({behavior:"smooth",block:"center"});}}>Create your workspace <ArrowRight size={17}/></button></section>
       <section className="landing-signup" id="get-started"><div className="signup-promo"><span className="section-kicker">A CALMER WAY TO GET THINGS DONE</span><h2>Start where you are.<br/><span>Build from there.</span></h2><p>Your plans do not need another tab. They need a place to come together.</p><div className="signup-benefits"><span><CheckCircle2 size={15}/> Personal workspace</span><span><CheckCircle2 size={15}/> No card required</span><span><CheckCircle2 size={15}/> Your pace, your priorities</span></div><div className="signup-decoration"><div className="deco-card deco-one"><span>THIS WEEK</span><b>Make meaningful progress.</b><div><i/><i/><i/><i/><i/></div></div><div className="deco-card deco-two"><Sparkles size={17}/><b>One thing at a time.</b><small>That is enough to begin.</small></div></div></div><div className="signup-form-card"><div className="signup-card-mark"><span className="landing-mark"><i/><i/><i/><i/></span><span>{authMode==="signup"?"YOUR WORKSPACE AWAITS":"WELCOME BACK"}</span></div><h3>{authMode==="signup"?"Make it yours.":"Pick up where you left off."}</h3><p>{authMode==="signup"?"Create your account and start bringing your day together.":"Sign in to get back to your workspace."}</p>
         {authError&&<p role="alert" className="landing-error">{authError}</p>}
-        <form onSubmit={submitAuth} className="landing-auth-form">{authMode==="signup"&&<label>Your name<input required minLength={2} maxLength={120} autoComplete="name" value={authForm.name} onChange={e=>setAuthForm({...authForm,name:e.target.value})} placeholder="e.g. Alex Morgan"/></label>}<label>Email address<input type="email" required maxLength={254} autoComplete="email" value={authForm.email} onChange={e=>setAuthForm({...authForm,email:e.target.value})} placeholder="you@company.com"/></label><label>Password<input type="password" required minLength={authMode==="signup"?10:1} maxLength={128} autoComplete={authMode==="signup"?"new-password":"current-password"} value={authForm.password} onChange={e=>setAuthForm({...authForm,password:e.target.value})} placeholder={authMode==="signup"?"At least 10 characters":"Your password"}/></label><button className="landing-submit" disabled={busy}>{busy?"Please wait…":authMode==="signup"?"Create my workspace":"Log in to DailyManager"} <ArrowRight size={16}/></button></form><div className="signup-switch">{authMode==="signup"?"Already have an account?":"New to DailyManager?"} <button onClick={()=>{setAuthMode(authMode==="signup"?"login":"signup");setAuthError("");}}>{authMode==="signup"?"Log in":"Create an account"}</button></div><div className="signup-security"><ShieldCheck size={14}/> Private workspace sessions. Billing is not active yet.</div></div></section>
+        <form onSubmit={submitAuth} className="landing-auth-form">{authMode==="signup"&&<label>Your name<input required minLength={2} maxLength={120} autoComplete="name" value={authForm.name} onChange={e=>setAuthForm({...authForm,name:e.target.value})} placeholder="e.g. Alex Morgan"/></label>}<label>Email address<input type="email" required maxLength={254} autoComplete="email" value={authForm.email} onChange={e=>setAuthForm({...authForm,email:e.target.value})} placeholder="you@company.com"/></label><label>Password<input type="password" required minLength={authMode==="signup"?10:1} maxLength={128} autoComplete={authMode==="signup"?"new-password":"current-password"} value={authForm.password} onChange={e=>setAuthForm({...authForm,password:e.target.value})} placeholder={authMode==="signup"?"At least 10 characters":"Your password"}/></label><button className="landing-submit" disabled={busy}>{busy?"Please wait…":authMode==="signup"?"Create my workspace":"Log in to DailyManager"} <ArrowRight size={16}/></button></form><div className="signup-switch">{authMode==="signup"?"Already have an account?":"New to DailyManager?"} <button onClick={()=>{setAuthMode(authMode==="signup"?"login":"signup");setAuthError("");}}>{authMode==="signup"?"Log in":"Create an account"}</button></div>{authMode==="login"&&<div style={{textAlign:"right",marginTop:8}}><a href="/forgot-password" style={{fontSize:12,color:"var(--accent,#ff9878)",textDecoration:"none"}}>Forgot password?</a></div>}<div className="signup-security"><ShieldCheck size={14}/> Private workspace sessions. Billing is not active yet.</div></div></section>
       <footer className="landing-footer"><a className="landing-brand" href="#platform"><span className="landing-mark"><i/><i/><i/><i/></span><span>daily<span className="brand-accent">manager</span><small>MAKE SPACE FOR BIG THINGS</small></span></a><span>Make space for what matters.</span><div><a href="#features">Features</a><a href="#plans">Plans</a><a href="#get-started">Get started</a></div><small>© {new Date().getFullYear()} DailyManager</small></footer>
       {notice&&<div role="status" className="landing-toast">{notice}</div>}
     </main>
@@ -1253,7 +1371,7 @@ export default function Home() {
         </div>
       </aside>
       <section className="main-panel">
-        <header className="topbar"><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-controls="workspace-sidebar" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(value => !value)}><Menu size={20}/></button><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{active}</b></div><button type="button" aria-label={"How to use " + active} title={"How to use " + active} onClick={() => setGuideOpen(value => !value)} style={{width:15,height:15,minWidth:15,padding:0,marginLeft:5,border:"1px solid var(--muted,#737b7e)",borderRadius:"50%",background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:9,lineHeight:"13px",fontWeight:700,cursor:"pointer",opacity:.72}}>!</button><span role="status" aria-live="polite" title={syncStatus==="synced"?"All changes synced":syncStatus==="syncing"?"Syncing changes":syncStatus==="offline"?"Offline — changes stay on this device":syncStatus==="error"?"Sync paused — changes remain on this device":"Changes waiting to sync"} style={{display:"inline-flex",alignItems:"center",gap:5,marginLeft:10,whiteSpace:"nowrap",fontSize:10,color:"var(--muted,#9ba2a4)"}}><span style={{width:6,height:6,borderRadius:"50%",background:syncStatus==="synced"?"#64c995":syncStatus==="syncing"?"#e9b65e":syncStatus==="error"?"#e58b78":"#d8a65c"}}/>{syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Syncing":syncStatus==="offline"?"Offline":syncStatus==="error"?"Sync paused":pendingSyncCount+" waiting"}</span>{(pendingSyncCount>0||syncStatus==="error")&&<button type="button" onClick={()=>{if(typeof window!=="undefined"&&navigator.onLine){setSyncStatus("syncing");window.dispatchEvent(new Event("online"));}}} disabled={syncStatus==="syncing"||syncStatus==="offline"} title={syncStatus==="offline"?"Reconnect to retry pending changes":"Retry pending changes"} aria-label="Retry offline changes" style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 8px",border:"1px solid var(--line,#303538)",borderRadius:7,background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:10,cursor:syncStatus==="syncing"||syncStatus==="offline"?"not-allowed":"pointer",opacity:syncStatus==="syncing"||syncStatus==="offline"?.55:1}}><RefreshCw size={11}/>{syncStatus==="syncing"?"Retrying…":"Retry"}</button>}<div className="top-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks, descriptions & projects…"/>{search ? <button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch("")} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:0,background:"transparent",color:"inherit",cursor:"pointer",padding:4}}><X size={15}/></button> : <kbd>⌕</kbd>}</div><div style={{position:"relative"}}><button className="icon-button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={()=>{const next=!notificationsOpen;setNotificationsOpen(next);if(next)loadNotifications();}} style={{position:"relative"}}><Bell size={18}/>{unreadNotifications>0&&<span style={{position:"absolute",right:5,top:4,minWidth:15,height:15,padding:"0 3px",borderRadius:99,background:"#f06b57",color:"#fff",fontSize:9,fontWeight:800,display:"grid",placeItems:"center"}}>{unreadNotifications>9?"9+":unreadNotifications}</span>}</button>{notificationsOpen&&<section role="dialog" aria-label="Notifications" style={{position:"absolute",right:0,top:48,width:360,maxWidth:"88vw",maxHeight:"min(70vh,520px)",overflowY:"auto",zIndex:130,padding:14,border:"1px solid var(--line,#343a3c)",borderRadius:15,background:"var(--panel,#191c1e)",color:"var(--text,#f4f2ef)",boxShadow:"0 22px 60px #0009"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}><b style={{fontSize:14}}>Notifications</b><div style={{display:"flex",gap:10,alignItems:"center"}}>{unreadNotifications>0&&<button type="button" onClick={markAllNotificationsRead} style={{border:0,background:"transparent",color:"var(--accent,#ff9878)",fontSize:11,cursor:"pointer"}}>Mark all read</button>}<button type="button" aria-label="Close notifications" onClick={()=>setNotificationsOpen(false)} style={{border:0,background:"transparent",color:"inherit",fontSize:18,cursor:"pointer"}}>×</button></div></div>{notificationsLoading?<p className="empty-state">Loading notifications…</p>:!notifications.length?<p className="empty-state">You’re all caught up. New task assignments will appear here.</p>:notifications.map(item=><button key={item.id} type="button" onClick={()=>openNotification(item)} style={{display:"grid",width:"100%",textAlign:"left",gap:4,padding:"11px 9px",border:0,borderTop:"1px solid var(--line,#343a3c)",background:item.read_at?"transparent":"var(--surface-muted,rgba(240,107,87,.09))",color:"inherit",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}><b style={{fontSize:12}}>{item.title}</b>{!item.read_at&&<span style={{width:7,height:7,borderRadius:9,background:"#f06b57",flexShrink:0}}/>}</span><span style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.45}}>{item.body}</span><span style={{fontSize:10,color:"var(--muted,#a9b0b2)"}}>{new Date(item.created_at).toLocaleString()}</span></button>)}</section>}</div><div className="top-avatar">{userInitials}</div></div></header>
+        <header className="topbar"><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-controls="workspace-sidebar" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(value => !value)}><Menu size={20}/></button><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{active}</b></div><button type="button" aria-label={"How to use " + active} title={"How to use " + active} onClick={() => setGuideOpen(value => !value)} style={{width:15,height:15,minWidth:15,padding:0,marginLeft:5,border:"1px solid var(--muted,#737b7e)",borderRadius:"50%",background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:9,lineHeight:"13px",fontWeight:700,cursor:"pointer",opacity:.72}}>!</button><span role="status" aria-live="polite" title={syncStatus==="synced"?"All changes synced":syncStatus==="syncing"?"Syncing changes":syncStatus==="offline"?"Offline — changes stay on this device":syncStatus==="error"?"Sync paused — changes remain on this device":"Changes waiting to sync"} style={{display:"inline-flex",alignItems:"center",gap:5,marginLeft:10,whiteSpace:"nowrap",fontSize:10,color:"var(--muted,#9ba2a4)"}}><span style={{width:6,height:6,borderRadius:"50%",background:syncStatus==="synced"?"#64c995":syncStatus==="syncing"?"#e9b65e":syncStatus==="error"?"#e58b78":"#d8a65c"}}/>{syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Syncing":syncStatus==="offline"?"Offline":syncStatus==="error"?"Sync paused":failedSyncCount ? failedSyncCount+" failed" : pendingSyncCount+" waiting"}</span>{(pendingSyncCount>0||syncStatus==="error")&&<button type="button" onClick={retryFailedOfflineChanges} disabled={syncStatus==="syncing"||syncStatus==="offline"} title={syncStatus==="offline"?"Reconnect to retry pending changes":"Retry pending changes"} aria-label="Retry offline changes" style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 8px",border:"1px solid var(--line,#303538)",borderRadius:7,background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:10,cursor:syncStatus==="syncing"||syncStatus==="offline"?"not-allowed":"pointer",opacity:syncStatus==="syncing"||syncStatus==="offline"?.55:1}}><RefreshCw size={11}/>{syncStatus==="syncing"?"Retrying…":"Retry"}</button>}<div className="top-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks, descriptions & projects…"/>{search ? <button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch("")} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:0,background:"transparent",color:"inherit",cursor:"pointer",padding:4}}><X size={15}/></button> : <kbd>⌕</kbd>}</div><div style={{position:"relative"}}><button className="icon-button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={()=>{const next=!notificationsOpen;setNotificationsOpen(next);if(next)loadNotifications();}} style={{position:"relative"}}><Bell size={18}/>{unreadNotifications>0&&<span style={{position:"absolute",right:5,top:4,minWidth:15,height:15,padding:"0 3px",borderRadius:99,background:"#f06b57",color:"#fff",fontSize:9,fontWeight:800,display:"grid",placeItems:"center"}}>{unreadNotifications>9?"9+":unreadNotifications}</span>}</button>{notificationsOpen&&<section role="dialog" aria-label="Notifications" style={{position:"absolute",right:0,top:48,width:360,maxWidth:"88vw",maxHeight:"min(70vh,520px)",overflowY:"auto",zIndex:130,padding:14,border:"1px solid var(--line,#343a3c)",borderRadius:15,background:"var(--panel,#191c1e)",color:"var(--text,#f4f2ef)",boxShadow:"0 22px 60px #0009"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}><b style={{fontSize:14}}>Notifications</b><div style={{display:"flex",gap:10,alignItems:"center"}}>{unreadNotifications>0&&<button type="button" onClick={markAllNotificationsRead} style={{border:0,background:"transparent",color:"var(--accent,#ff9878)",fontSize:11,cursor:"pointer"}}>Mark all read</button>}<button type="button" aria-label="Close notifications" onClick={()=>setNotificationsOpen(false)} style={{border:0,background:"transparent",color:"inherit",fontSize:18,cursor:"pointer"}}>×</button></div></div>{notificationsLoading?<p className="empty-state">Loading notifications…</p>:!notifications.length?<p className="empty-state">You’re all caught up. New task assignments will appear here.</p>:notifications.map(item=><button key={item.id} type="button" onClick={()=>openNotification(item)} style={{display:"grid",width:"100%",textAlign:"left",gap:4,padding:"11px 9px",border:0,borderTop:"1px solid var(--line,#343a3c)",background:item.read_at?"transparent":"var(--surface-muted,rgba(240,107,87,.09))",color:"inherit",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}><b style={{fontSize:12}}>{item.title}</b>{!item.read_at&&<span style={{width:7,height:7,borderRadius:9,background:"#f06b57",flexShrink:0}}/>}</span><span style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.45}}>{item.body}</span><span style={{fontSize:10,color:"var(--muted,#a9b0b2)"}}>{new Date(item.created_at).toLocaleString()}</span></button>)}</section>}</div><div className="top-avatar">{userInitials}</div></div></header>
         <div className="content">
           <div className="welcome-row"><div><div className="eyebrow"><span className="eyebrow-dot"/> YOUR WORKSPACE</div><h1>{heading}</h1><p className="subtitle">{active==="Overview"?"A little progress each day adds up to big results.":"Your DailyManager workspace, all in one place."}</p></div>{!selectedFeature && ["Overview","My tasks","Task board","Task table","Planner","Calendar","Projects","Notes"].includes(active) && <button className="primary-button" onClick={()=>active==="Projects"?create("project"):active==="Notes"?create("note"):openTaskComposer()}><Plus size={17}/> {active==="Projects"?"New project":active==="Notes"?"New note":"New task"}</button>}</div>
           {selectedFeature && active===selectedFeature.name && <section className="panel feature-detail-screen">
@@ -1433,13 +1551,11 @@ export default function Home() {
                 <div className="panel-heading"><div><button className="text-action" onClick={()=>setActive("Projects")}><ArrowRight size={13} style={{transform:"rotate(180deg)"}}/> All projects</button><h2 style={{marginTop:9}}>{project.name}</h2><p>{project.description||"Add a description to explain this project's purpose and outcomes."}</p></div><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="period-select" onClick={()=>editProject(project)}><Pencil size={13}/> Edit</button><button className="primary-button" onClick={()=>{setSearch("");openTaskComposer({project_id:String(project.id)});}}><Plus size={14}/> Add task</button></div></div>
                 <div className="stats-grid" style={{marginBottom:0}}>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon orange"><FolderKanban size={17}/></span></div><p>Completion</p><div className="stat-number">{progress}%</div></article>
-                  <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={17}/></span></div><p>Tasks counted</p><div className="stat-number">{countedRelated.length}</div></article>
-                  <article className="stat-card"><div className="stat-top"><span className="stat-icon green"><CheckCircle2 size={17}/></span></div><p>Completed</p><div className="stat-number">{done}</div></article>
+                  <article className="stat-card"><div className="stat-top"><span className="stat-icon violet"><ListTodo size={17}/></span></div><p>Tasks counted</p><div className="stat-number">{countedRelated.length}</div></article>                  <article className="stat-card"><div className="stat-top"><span className="stat-icon green"><CheckCircle2 size={17}/></span></div><p>Completed</p><div className="stat-number">{done}</div></article>
                   <article className="stat-card"><div className="stat-top"><span className="stat-icon pink"><Clock size={17}/></span></div><p>Overdue</p><div className="stat-number">{overdue.length}</div></article>
                 </div>
                 <div style={{marginTop:17}}><div className="project-progress-label"><span>Delivery progress</span><b>{done} of {countedRelated.length} complete</b></div><div className="focus-progress"><span style={{width:progress+"%"}}/></div></div>
-                <div className="project-report-actions"><button type="button" className="project-view-tasks" onClick={()=>exportProjectReport(project,related)}><Files size={14}/> Export project report (CSV)</button><span>Includes every linked task, status, priority and due date.</span></div>
-              </section>
+                <div className="project-report-actions"><button type="button" className="project-view-tasks" onClick={()=>exportProjectReport(project,related)}><Files size={14}/> Export project report (CSV)</button><span>Includes every linked task, status, priority and due date.</span></div>              </section>
               <section className="panel project-workload-panel">
                 <div className="panel-heading"><div><h2>Workload &amp; schedule</h2><p>See how open work is distributed and what is due next.</p></div><span className="task-status">{activeTasks.length} open</span></div>
                 <div className="project-workload-stats">
@@ -1614,7 +1730,7 @@ export default function Home() {
             <div className="activity-feed">{activityItems.map(item=><article className="activity-entry" key={item.id}><span className={`activity-entry-icon activity-${item.entity_type}`}>{item.entity_type==="project"?<FolderKanban size={15}/>:item.entity_type==="member"?<Users size={15}/>:item.entity_type==="note"?<FileText size={15}/>:<ListTodo size={15}/>}</span><div className="activity-entry-main"><b>{item.actor_name}</b><p>{item.summary}</p><span>{new Date(item.created_at).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})}</span></div><span className="activity-entry-type">{item.entity_type}</span></article>)}</div>
             <p className="activity-footnote">Activity history starts when this feature is deployed. Earlier changes are not backfilled.</p>
           </section>}
-          {active==="Settings" && <><section className="panel"><div className="panel-heading"><div><h2>Workspace settings</h2><p>Your account and plan information.</p></div></div><p><b>Workspace:</b> {workspace?.name}</p>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={renameWorkspace} style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",margin:"12px 0 18px"}}><input name="workspace_name" aria-label="Workspace name" defaultValue={workspace?.name || ""} required minLength={2} maxLength={100} style={{...inputStyle,flex:"1 1 220px"}}/><button type="submit" style={buttonStyle} disabled={busy}>{busy?"Saving…":"Rename workspace"}</button></form>}<p><b>Account:</b> {user.email}</p><p><b>Plan:</b> {workspace?.plan}</p><p><b>Trial ends:</b> {workspace?.trial_ends_at?new Date(workspace.trial_ends_at).toLocaleDateString():"Not set"}</p>{String(workspace?.owner_user_id)===String(user?.id)&&<div style={{display:"flex",gap:8,flexWrap:"wrap",margin:"12px 0"}}><a href="/api/workspace/export" className="project-view-tasks" style={{display:"inline-flex",alignItems:"center",textDecoration:"none",padding:"10px 13px"}}>Download workspace data</a></div>}<div style={{marginTop:14,padding:14,border:"1px solid var(--line,#303538)",borderRadius:12}}><b>Workspace subscription</b><p style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.5}}>The workspace owner manages one subscription for the whole team. Your seven-day trial applies to new workspaces. Choose a configured payment provider. Your workspace subscription covers the whole team.</p>{String(workspace?.owner_user_id)===String(user?.id)&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" style={buttonStyle} disabled={busy} onClick={()=>startBillingCheckout("monthly","paystack")}>{busy?"Please wait…":"Paystack · Monthly"}</button><button type="button" className="project-view-tasks" disabled={busy} onClick={()=>startBillingCheckout("annual","paystack")}>Paystack · Annual</button><button type="button" className="project-view-tasks" disabled={busy} onClick={()=>startBillingCheckout("monthly","bachs")}>Bachs · Monthly</button><button type="button" className="project-view-tasks" disabled={busy} onClick={()=>startBillingCheckout("annual","bachs")}>Bachs · Annual</button></div>}</div></section>{String(workspace?.owner_user_id)===String(user?.id)&&workspaces.length>1&&<section className="panel" style={{marginTop:18,border:"1px solid #75443d"}}><div className="panel-heading"><div><h2 style={{color:"#f08c76"}}>Danger zone</h2><p>Deleting this workspace permanently removes its projects, tasks, notes, comments and activity.</p></div></div><button type="button" onClick={deleteWorkspace} disabled={busy} style={{...buttonStyle,background:"#6f302b",color:"#fff"}}>{busy?"Please wait…":"Delete this workspace"}</button></section>}<section className="panel" style={{marginTop:18}}><div className="panel-heading"><div><h2>Workspace members</h2><p>Manage existing DailyManager accounts that can access this workspace.</p></div><span className="task-status">{members.length} member{members.length===1?"":"s"}</span></div>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={addWorkspaceMember} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}><input aria-label="Existing member account email" placeholder="Existing DailyManager account email" type="email" required maxLength={254} value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} style={{...inputStyle,flex:"1 1 220px"}}/><select aria-label="New member role" value={memberRole} onChange={e=>setMemberRole(e.target.value)} style={{...inputStyle,width:"auto"}}><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button style={buttonStyle} disabled={busy||!memberEmail.trim()}>{busy?"Adding…":"Add existing member"}</button><p style={{flex:"1 1 100%",fontSize:12,color:"#a9b0b2",margin:"2px 0 0"}}>This adds an account that has already registered. It does not send an email invitation. People without an account must register before you can add them.</p></form>}
+          {active==="Settings" && <><section className="panel"><div className="panel-heading"><div><h2>Workspace settings</h2><p>Your account and plan information.</p></div></div><p><b>Workspace:</b> {workspace?.name}</p>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={renameWorkspace} style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",margin:"12px 0 18px"}}><input name="workspace_name" aria-label="Workspace name" defaultValue={workspace?.name || ""} required minLength={2} maxLength={100} style={{...inputStyle,flex:"1 1 220px"}}/><button type="submit" style={buttonStyle} disabled={busy}>{busy?"Saving…":"Rename workspace"}</button></form>}<p><b>Account:</b> {user.email}</p><div style={{margin:"10px 0 16px",padding:12,border:"1px solid var(--line,#303538)",borderRadius:10}}><b>Account security</b><p style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.5,margin:"6px 0 10px"}}>If you think someone else has access to your account, revoke every active sign-in. This device will be signed out too.</p><button type="button" className="project-view-tasks" onClick={revokeAllSessions} disabled={busy} style={{borderColor:"#8a5148",color:"#f2a395"}}>{busy?"Please wait…":"Sign out all devices"}</button></div><p><b>Plan:</b> {workspace?.plan}</p><p><b>Trial ends:</b> {workspace?.trial_ends_at?new Date(workspace.trial_ends_at).toLocaleDateString():"Not set"}</p>{String(workspace?.owner_user_id)===String(user?.id)&&<div style={{display:"flex",gap:8,flexWrap:"wrap",margin:"12px 0"}}><a href="/api/workspace/export" className="project-view-tasks" style={{display:"inline-flex",alignItems:"center",textDecoration:"none",padding:"10px 13px"}}>Download workspace data</a><button type="button" className="project-view-tasks" onClick={exportDeviceBackup} style={{padding:"10px 13px"}}>Download device backup</button><a href="/restore" className="project-view-tasks" style={{display:"inline-flex",alignItems:"center",textDecoration:"none",padding:"10px 13px"}}>Inspect a backup</a></div>}<div style={{marginTop:14,padding:14,border:"1px solid var(--line,#303538)",borderRadius:12}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}><b>Workspace subscription</b><button type="button" className="project-view-tasks" onClick={loadBillingStatus} disabled={billingLoading}>{billingLoading?"Refreshing…":"Refresh status"}</button></div><p style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.5}}>The workspace owner manages one subscription for the whole team. Your seven-day trial applies to new workspaces. Paystack is the primary payment method for Nigerian subscriptions.</p>{billingLoading&&!billingStatus&&<p style={{fontSize:12,color:"var(--muted,#a9b0b2)"}}>Loading subscription details…</p>}{billingStatus?.subscription&&<div style={{padding:"10px 12px",borderRadius:10,background:"rgba(255,255,255,.035)",marginBottom:12,fontSize:12,lineHeight:1.7}}><div><b>Status:</b> <span style={{textTransform:"capitalize"}}>{String(billingStatus.subscription.status||"unknown").replaceAll("_"," ")}</span></div><div><b>Plan:</b> {billingStatus.subscription.plan_code||"Workspace subscription"}</div><div><b>Billing:</b> {billingStatus.subscription.currency||""} {billingStatus.subscription.amount_minor?((Number(billingStatus.subscription.amount_minor)/100).toLocaleString("en-NG",{minimumFractionDigits:2,maximumFractionDigits:2})):"—"} / {billingStatus.subscription.billing_interval||"—"}</div><div><b>Current period ends:</b> {billingStatus.subscription.current_period_end?new Date(billingStatus.subscription.current_period_end).toLocaleDateString():"Not confirmed"}</div>{billingStatus.subscription.cancel_at_period_end&&<div style={{color:"#e8c78a"}}>Cancellation is scheduled for the end of this billing period.</div>}{billingStatus.subscription.can_manage_subscription&&<button type="button" className="project-view-tasks" onClick={manageSubscription} disabled={busy} style={{marginTop:8}}>{busy?"Opening…":"Manage subscription / payment method"}</button>}</div>}{String(workspace?.owner_user_id)===String(user?.id)&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button type="button" style={buttonStyle} disabled={busy||!billingStatus?.checkout_configured?.paystack} onClick={()=>startBillingCheckout("monthly","paystack")}>{busy?"Please wait…":"Paystack · Monthly"}</button></div>}{billingStatus&&!billingStatus.checkout_configured?.paystack&&<p style={{fontSize:12,color:"#e8c78a",lineHeight:1.5,marginBottom:0}}>Paystack test configuration is not complete yet. Checkout will become available after the platform administrator saves the required plan codes and credentials.</p>}{billingStatus?.payments?.length>0&&<div style={{marginTop:14}}><b style={{fontSize:12}}>Recent payment history</b>{billingStatus.payments.slice(0,5).map(payment=><div key={payment.provider_reference} style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",padding:"9px 0",borderTop:"1px solid var(--line,#303538)",fontSize:11}}><span><b style={{textTransform:"capitalize"}}>{payment.provider}</b><span style={{display:"block",color:"var(--muted,#a9b0b2)",marginTop:3}}>{payment.created_at?new Date(payment.created_at).toLocaleDateString():"—"} · {payment.currency}</span></span><span style={{textAlign:"right"}}><b>{(Number(payment.amount_minor||0)/100).toLocaleString("en-NG",{minimumFractionDigits:2,maximumFractionDigits:2})}</b><span style={{display:"block",textTransform:"capitalize",color:payment.status==="success"?"#8fe0b0":"var(--muted,#a9b0b2)"}}>{payment.status}</span></span></div>)}</div>}</div></section>{String(workspace?.owner_user_id)===String(user?.id)&&workspaces.length>1&&<section className="panel" style={{marginTop:18,border:"1px solid #75443d"}}><div className="panel-heading"><div><h2 style={{color:"#f08c76"}}>Danger zone</h2><p>Deleting this workspace permanently removes its projects, tasks, notes, comments and activity.</p></div></div><button type="button" onClick={deleteWorkspace} disabled={busy} style={{...buttonStyle,background:"#6f302b",color:"#fff"}}>{busy?"Please wait…":"Delete this workspace"}</button></section>}<section className="panel" style={{marginTop:18}}><div className="panel-heading"><div><h2>Workspace members</h2><p>Manage existing DailyManager accounts that can access this workspace.</p></div><span className="task-status">{members.length} member{members.length===1?"":"s"}</span></div>{String(workspace?.owner_user_id)===String(user?.id)&&<form onSubmit={addWorkspaceMember} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}><input aria-label="Existing member account email" placeholder="Existing DailyManager account email" type="email" required maxLength={254} value={memberEmail} onChange={e=>setMemberEmail(e.target.value)} style={{...inputStyle,flex:"1 1 220px"}}/><select aria-label="New member role" value={memberRole} onChange={e=>setMemberRole(e.target.value)} style={{...inputStyle,width:"auto"}}><option value="member">Member</option><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button style={buttonStyle} disabled={busy||!memberEmail.trim()}>{busy?"Adding…":"Add existing member"}</button><p style={{flex:"1 1 100%",fontSize:12,color:"#a9b0b2",margin:"2px 0 0"}}>This adds an account that has already registered. It does not send an email invitation. People without an account must register before you can add them.</p></form>}
 {String(workspace?.owner_user_id)===String(user?.id)&&<section style={{borderTop:"1px solid var(--line,#303538)",paddingTop:16,marginTop:16}}>
 <div className="panel-heading"><div><h3>Workspace invitations</h3><p>Create a seven-day invitation for someone to join this workspace.</p></div><button type="button" className="project-view-tasks" onClick={loadWorkspaceInvitations} disabled={invitationLoading}>{invitationLoading?"Loading…":"Refresh"}</button></div>
 <form onSubmit={createWorkspaceInvitation} style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>

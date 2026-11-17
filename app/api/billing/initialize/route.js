@@ -15,8 +15,8 @@ export async function POST(request) {
   if (!user) return NextResponse.json({ error: "Please log in to continue." }, { status: 401 });
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const interval = body?.interval === "annual" ? "annual" : body?.interval === "monthly" ? "monthly" : null;
-  if (!interval) return NextResponse.json({ error: "Choose a valid billing interval." }, { status: 400 });
+  const interval = body?.interval === "monthly" ? "monthly" : null;
+  if (!interval) return NextResponse.json({ error: "DailyManager currently accepts monthly subscriptions only." }, { status: 400 });
   const mode = getProviderMode();
   const client = await pool.connect();
   try {
