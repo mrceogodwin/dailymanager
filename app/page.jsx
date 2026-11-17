@@ -302,7 +302,7 @@ export default function Home() {
       setFailedSyncCount(0);
       setSyncStatus("syncing");
       window.dispatchEvent(new Event("online"));
-      window.dispatchEvent(new Event("online"));\n      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "Retrying changes waiting to sync.");
+      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "Retrying changes waiting to sync.");
     } catch (error) { setNotice(error.message || "Could not retry offline changes."); }
   }
 
