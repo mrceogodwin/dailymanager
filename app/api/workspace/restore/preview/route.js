@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_RECORDS = 10000;
+const MAX_BYTES = 15 * 1024 * 1024;
 const COLLECTIONS = ["projects", "tasks", "notes", "task_comments", "activity", "billing_payments"];
 
 function validId(value) {
@@ -34,9 +35,17 @@ export async function POST(request) {
     if (String(workspace.owner_user_id) !== String(user.id)) {
       return NextResponse.json({ error: "Only the workspace owner can run a recovery conflict check." }, { status: 403 });
     }
+
     const declaredLength = Number(request.headers.get("content-length") || 0);
-    if (declaredLength > 15 * 1024 * 1024) return NextResponse.json({ error: "Backup file exceeds the 15 MB limit." }, { status: 413 });
-    const body = await request.json();
+    if (declaredLength > MAX_BYTES) return NextResponse.json({ error: "Backup file exceeds the 15 MB limit." }, { status: 413 });
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).byteLength > MAX_BYTES) return NextResponse.json({ error: "Backup file exceeds the 15 MB limit." }, { status: 413 });
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: "Backup file is not valid JSON." }, { status: 400 });
+    }
     if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Submit a valid backup object." }, { status: 400 });
     if (body.version !== 1 || !["DailyManager workspace export", "DailyManager on-device backup"].includes(body.format)) {
       return NextResponse.json({ error: "This backup format or version is not supported." }, { status: 400 });
@@ -56,15 +65,18 @@ export async function POST(request) {
       collections[key] = checkList(source[key], key);
       totalRecords += collections[key].length;
     }
-    if (body.format === "DailyManager workspace export") {
-      const members = checkList(body.members, "members");
-      totalRecords += members.length;
-    }
+    const sourceMembers = checkList(body.format === "DailyManager workspace export" ? body.members : source.members, "members");
+    totalRecords += sourceMembers.length;
     if (totalRecords > MAX_RECORDS) return NextResponse.json({ error: "This backup contains too many records for one recovery review." }, { status: 413 });
 
-    for (const key of COLLECTIONS) {\n      if (collections[key].some(item => !item || typeof item !== "object" || Array.isArray(item))) referenceProblems.push("The " + key.replaceAll("_", " ") + " section contains an invalid record.");\n    }\n    const projectIds = new Set(collections.projects.map(item => String(item?.id)));
-    const taskIds = new Set(collections.tasks.map(item => String(item?.id)));
     const referenceProblems = [];
+    for (const key of COLLECTIONS) {
+      if (collections[key].some(item => !item || typeof item !== "object" || Array.isArray(item))) {
+        referenceProblems.push("The " + key.replaceAll("_", " ") + " section contains an invalid record.");
+      }
+    }
+    const projectIds = new Set(collections.projects.map(item => String(item?.id)));
+    const taskIds = new Set(collections.tasks.map(item => String(item?.id)));
     for (const project of collections.projects) if (!validId(project?.id)) referenceProblems.push("A project is missing its record ID.");
     for (const task of collections.tasks) {
       if (!validId(task?.id)) referenceProblems.push("A task is missing its record ID.");
@@ -83,7 +95,8 @@ export async function POST(request) {
         client.query("SELECT id FROM projects WHERE workspace_id = $1", [workspace.id]),
         client.query("SELECT id FROM tasks WHERE workspace_id = $1", [workspace.id]),
         client.query("SELECT id FROM workspace_notes WHERE workspace_id = $1", [workspace.id]),
-        client.query("SELECT id FROM task_comments WHERE workspace_id = $1", [workspace.id]),\n        client.query("SELECT wm.user_id, LOWER(u.email) AS email FROM workspace_members wm JOIN app_users u ON u.id = wm.user_id WHERE wm.workspace_id = $1", [workspace.id]),
+        client.query("SELECT id FROM task_comments WHERE workspace_id = $1", [workspace.id]),
+        client.query("SELECT wm.user_id, LOWER(u.email) AS email FROM workspace_members wm JOIN app_users u ON u.id = wm.user_id WHERE wm.workspace_id = $1", [workspace.id]),
       ]);
       const existing = {
         projects: new Set(projects.rows.map(row => String(row.id))),
@@ -95,6 +108,15 @@ export async function POST(request) {
       for (const key of Object.keys(existing)) {
         conflicts[key] = collections[key].filter(item => validId(item?.id) && existing[key].has(String(item.id))).length;
       }
+
+      const currentByEmail = new Map(currentMembers.rows.map(row => [row.email, String(row.user_id)]));
+      const sourceById = new Map(sourceMembers.map(member => [String(member?.user_id ?? member?.id ?? ""), String(member?.email || "").trim().toLowerCase()]));
+      const mappedSourceMembers = [...sourceById.values()].filter(email => email && currentByEmail.has(email));
+      const unmatchedMembers = [...sourceById.values()].filter(email => !email || !currentByEmail.has(email)).map(email => email || "Unknown email").slice(0, 30);
+      const referencedAssignees = new Set(collections.tasks.map(task => String(task?.assigned_to || task?.assignee_user_id || "")).filter(Boolean));
+      const sourceUserIds = new Set(sourceById.keys());
+      const unmappedAssigneeIds = [...referencedAssignees].filter(id => !sourceUserIds.has(id));
+
       return NextResponse.json({
         ok: true,
         preview_only: true,
@@ -104,10 +126,13 @@ export async function POST(request) {
         source_exported_at: body.exported_at || null,
         total_records: totalRecords,
         record_counts: Object.fromEntries(COLLECTIONS.map(key => [key, collections[key].length])),
-        existing_id_conflicts: conflicts,\n        member_mapping: { source_members: sourceMembers.length, matched_by_email: mappedSourceMembers.length, unmatched_members: unmappedMembers },\n        tasks_with_unmapped_assignees: unmappedAssigneeIds.length,
+        existing_id_conflicts: conflicts,
+        member_mapping: { source_members: sourceMembers.length, matched_by_email: mappedSourceMembers.length, unmatched_members: unmatchedMembers },
+        tasks_with_unmapped_assignees: unmappedAssigneeIds.length,
         reference_problem_count: referenceProblems.length,
         reference_problems: referenceProblems,
         pending_offline_changes: Array.isArray(body.pending_offline_changes) ? body.pending_offline_changes.length : 0,
+        recovery_scope: { append_only: true, maps_members_by_email: true, billing_history: false, subscriptions: false, historical_activity: false },
         recommendation: "No data was changed. A future append-only restore can generate new record IDs, map member identities by email, and leave unmatched assignees unassigned. Billing history, subscriptions, and historical activity are excluded from recovery writes.",
       }, { headers: { "Cache-Control": "private, no-store, max-age=0", "X-Content-Type-Options": "nosniff" } });
     } finally {
