@@ -56,7 +56,7 @@ export async function GET() {
         loaded: { tasks: tasksResult.rows.length, notes: notesResult.rows.length, projects: projectsResult.rows.length, members: membersResult.rows.length },
         complete: Number(countsResult.rows[0]?.tasks_total || 0) === tasksResult.rows.length && Number(countsResult.rows[0]?.notes_total || 0) === notesResult.rows.length && Number(countsResult.rows[0]?.projects_total || 0) === projectsResult.rows.length && Number(countsResult.rows[0]?.members_total || 0) === membersResult.rows.length,
       },
-    });
+    }, { headers: { "Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache" } });
   } catch (error) {
     console.error("DailyManager workspace load failed", error);
     return NextResponse.json({ error: error.status === 503 ? error.message : "Workspace is temporarily unavailable." }, { status: error.status || 500 });
