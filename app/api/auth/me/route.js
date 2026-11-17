@@ -4,6 +4,7 @@ import { getSessionUser } from "../../../../lib/session";
 import { getWorkspaceForUser } from "../../../../lib/workspace-context";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
@@ -23,7 +24,7 @@ export async function GET() {
     const workspaces = workspacesResult.rows;
     if (!workspace) return NextResponse.json({ error: "No workspace is linked to this account." }, { status: 409 });
 
-    const [projectsResult, tasksResult, notesResult, membersResult] = await Promise.all([
+    const [projectsResult, tasksResult, notesResult, membersResult, countsResult] = await Promise.all([
       query("SELECT id, name, description, status, color FROM projects WHERE workspace_id = $1 ORDER BY updated_at DESC", [workspace.id]),
       query(
         `SELECT t.id, t.title, t.description, t.status, t.priority, t.project_id, t.due_at,
@@ -36,6 +37,10 @@ export async function GET() {
       ),
       query("SELECT id, title, body, created_at, updated_at FROM workspace_notes WHERE workspace_id = $1 ORDER BY updated_at DESC LIMIT 200", [workspace.id]),
       query("SELECT m.user_id AS id, u.name, u.email, m.role, m.created_at FROM workspace_members m JOIN app_users u ON u.id = m.user_id WHERE m.workspace_id = $1 ORDER BY CASE WHEN m.user_id = $2 THEN 0 ELSE 1 END, m.created_at ASC", [workspace.id, user.id]),
+      query(`SELECT (SELECT COUNT(*)::int FROM tasks WHERE workspace_id = $1) AS tasks_total,
+                    (SELECT COUNT(*)::int FROM workspace_notes WHERE workspace_id = $1) AS notes_total,
+                    (SELECT COUNT(*)::int FROM projects WHERE workspace_id = $1) AS projects_total,
+                    (SELECT COUNT(*)::int FROM workspace_members WHERE workspace_id = $1) AS members_total`, [workspace.id]),
     ]);
     return NextResponse.json({
       user: { id: user.id, name: user.name, email: user.email },
@@ -45,6 +50,12 @@ export async function GET() {
       tasks: tasksResult.rows,
       notes: notesResult.rows,
       members: membersResult.rows,
+      snapshot_meta: {
+        generated_at: new Date().toISOString(),
+        counts: countsResult.rows[0],
+        loaded: { tasks: tasksResult.rows.length, notes: notesResult.rows.length, projects: projectsResult.rows.length, members: membersResult.rows.length },
+        complete: Number(countsResult.rows[0]?.tasks_total || 0) === tasksResult.rows.length && Number(countsResult.rows[0]?.notes_total || 0) === notesResult.rows.length && Number(countsResult.rows[0]?.projects_total || 0) === projectsResult.rows.length && Number(countsResult.rows[0]?.members_total || 0) === membersResult.rows.length,
+      },
     });
   } catch (error) {
     console.error("DailyManager workspace load failed", error);
