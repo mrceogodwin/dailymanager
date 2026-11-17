@@ -301,7 +301,7 @@ export default function Home() {
       body: payload,
       localId,
     });
-    const cached = await readLatestWorkspaceSnapshot();
+    const cached = await readWorkspaceSnapshot(user.id, workspace.id);
     const next = cached?.data ? { ...cached.data } : {
       user, workspace, workspaces, tasks, projects, notes, members,
     };
@@ -722,7 +722,7 @@ export default function Home() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setNotice(`Device backup downloaded. It includes ${pendingChanges.length} pending offline change(s).`);
+      const completeness = snapshot.data.snapshot_meta?.complete;\n      setNotice(`Device backup downloaded. ${completeness === false ? "Warning: this snapshot is partial. " : ""}It includes ${pendingChanges.length} pending offline change(s).`);
     } catch (error) {
       setNotice(error.message || "Could not create a device backup.");
     }
