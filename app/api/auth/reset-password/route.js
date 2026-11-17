@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { pool } from "../../../../lib/db";
 import { hashToken } from "../../../../lib/session";
