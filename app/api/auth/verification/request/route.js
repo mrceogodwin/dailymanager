@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
-import { getSessionUser, hashToken } from "../../../../lib/session";
-import { query } from "../../../../lib/db";
-import { sendAccountActionEmail } from "../../../../lib/account-email";
-import { checkAuthRateLimit } from "../../../../lib/rate-limit";
-import { isSameOriginMutation } from "../../../../lib/request-security";
+import { getSessionUser, hashToken } from "../../../../../lib/session";
+import { query } from "../../../../../lib/db";
+import { sendAccountActionEmail } from "../../../../../lib/account-email";
+import { checkAuthRateLimit } from "../../../../../lib/rate-limit";
+import { isSameOriginMutation } from "../../../../../lib/request-security";
 
 export const runtime = "nodejs";
 
