@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readLatestWorkspaceSnapshot, readWorkspaceSnapshot, saveWorkspaceSnapshot, clearUserDeviceData, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation, remapOfflineRecordId } from "../lib/offline-store";
+import { readLatestWorkspaceSnapshot, readWorkspaceSnapshot, saveWorkspaceSnapshot, clearUserDeviceData, enqueueOfflineMutation, listOfflineMutations, removeOfflineMutation, remapOfflineRecordId, updateOfflineMutation } from "../lib/offline-store";
 import {
   Activity, RefreshCw, ArrowRight, Bell, CalendarDays, Check, ChevronDown, CircleHelp, Menu, Sun, Moon,
   FileText, FolderKanban, LayoutDashboard, ListTodo, LogOut, Plus, Search,
@@ -49,7 +49,7 @@ async function api(url, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || "Something went wrong. Please try again.");
+  if (!response.ok) { const error = new Error(data.error || "Something went wrong. Please try again."); error.status = response.status; throw error; }
   return data;
 }
 
@@ -172,7 +172,7 @@ export default function Home() {
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [draft, setDraft] = useState({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium", assigned_to: "" });
   const [notice, setNotice] = useState("");
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);\n  const [failedSyncCount, setFailedSyncCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState("synced");
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -292,7 +292,7 @@ export default function Home() {
     }
   }
 
-  async function queueOfflineWorkspaceChange(payload) {
+  async function retryFailedOfflineChanges() {\n    if (!user?.id || !workspace?.id || typeof navigator === "undefined" || !navigator.onLine) { setNotice("Reconnect to the internet before retrying saved changes."); return; }\n    try {\n      const queued = await listOfflineMutations(user.id, workspace.id);\n      const failed = queued.filter(item => item.state === "failed");\n      for (const item of failed) await updateOfflineMutation(item.id, { state: "pending", last_error: "" });\n      setFailedSyncCount(0);\n      setSyncStatus("syncing");\n      window.dispatchEvent(new Event("online"));\n      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "No failed offline changes need retrying.");\n    } catch (error) { setNotice(error.message || "Could not retry offline changes."); }\n  }\n\n  async function queueOfflineWorkspaceChange(payload) {
     if (!user?.id || !workspace?.id) throw new Error("Open a workspace online before making offline changes.");
     const localId = ["task", "project", "note"].includes(payload.kind) ? "local-" + Date.now() + "-" + Math.random().toString(16).slice(2) : null;
     await enqueueOfflineMutation({
@@ -406,20 +406,37 @@ export default function Home() {
       syncing = true;
       setSyncStatus("syncing");
       try {
-        const pending = await listOfflineMutations(user.id, workspace.id);
-        setPendingSyncCount(pending.length);
+        const queued = await listOfflineMutations(user.id, workspace.id);
+        const pending = queued.filter(item => item.state === "pending");
+        setPendingSyncCount(queued.length);
+        setFailedSyncCount(queued.filter(item => item.state === "failed").length);
+        let syncedCount = 0;
         for (const item of pending) {
-          const result = await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
-          if (item.local_id && result?.id) {
-            await remapOfflineRecordId(user.id, workspace.id, item.local_id, String(result.id));
+          try {
+            const result = await api(item.endpoint, { method: item.method, body: JSON.stringify(item.body) });
+            if (item.local_id && result?.id) {
+              await remapOfflineRecordId(user.id, workspace.id, item.local_id, String(result.id));
+            }
+            await removeOfflineMutation(item.id);
+            syncedCount += 1;
+          } catch (itemError) {
+            const attemptCount = (item.attempt_count || 0) + 1;
+            const permanentClientError = [400, 404, 409, 422].includes(itemError.status);
+            await updateOfflineMutation(item.id, {
+              state: permanentClientError ? "failed" : "pending",
+              attempt_count: attemptCount,
+              last_attempt_at: new Date().toISOString(),
+              last_error: itemError.message || "Sync failed."
+            });
+            if (!permanentClientError) throw itemError;
           }
-          await removeOfflineMutation(item.id);
           const remaining = await listOfflineMutations(user.id, workspace.id);
           setPendingSyncCount(remaining.length);
+          setFailedSyncCount(remaining.filter(item => item.state === "failed").length);
         }
-        if (pending.length) {
+        if (syncedCount) {
           await refresh();
-          setNotice(pending.length + " offline change" + (pending.length === 1 ? "" : "s") + " synced.");
+          setNotice(syncedCount + " offline change" + (syncedCount === 1 ? "" : "s") + " synced.");
         }
         await updateQueueStatus();
       } catch (error) {
@@ -1311,7 +1328,7 @@ export default function Home() {
         </div>
       </aside>
       <section className="main-panel">
-        <header className="topbar"><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-controls="workspace-sidebar" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(value => !value)}><Menu size={20}/></button><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{active}</b></div><button type="button" aria-label={"How to use " + active} title={"How to use " + active} onClick={() => setGuideOpen(value => !value)} style={{width:15,height:15,minWidth:15,padding:0,marginLeft:5,border:"1px solid var(--muted,#737b7e)",borderRadius:"50%",background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:9,lineHeight:"13px",fontWeight:700,cursor:"pointer",opacity:.72}}>!</button><span role="status" aria-live="polite" title={syncStatus==="synced"?"All changes synced":syncStatus==="syncing"?"Syncing changes":syncStatus==="offline"?"Offline — changes stay on this device":syncStatus==="error"?"Sync paused — changes remain on this device":"Changes waiting to sync"} style={{display:"inline-flex",alignItems:"center",gap:5,marginLeft:10,whiteSpace:"nowrap",fontSize:10,color:"var(--muted,#9ba2a4)"}}><span style={{width:6,height:6,borderRadius:"50%",background:syncStatus==="synced"?"#64c995":syncStatus==="syncing"?"#e9b65e":syncStatus==="error"?"#e58b78":"#d8a65c"}}/>{syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Syncing":syncStatus==="offline"?"Offline":syncStatus==="error"?"Sync paused":pendingSyncCount+" waiting"}</span>{(pendingSyncCount>0||syncStatus==="error")&&<button type="button" onClick={()=>{if(typeof window!=="undefined"&&navigator.onLine){setSyncStatus("syncing");window.dispatchEvent(new Event("online"));}}} disabled={syncStatus==="syncing"||syncStatus==="offline"} title={syncStatus==="offline"?"Reconnect to retry pending changes":"Retry pending changes"} aria-label="Retry offline changes" style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 8px",border:"1px solid var(--line,#303538)",borderRadius:7,background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:10,cursor:syncStatus==="syncing"||syncStatus==="offline"?"not-allowed":"pointer",opacity:syncStatus==="syncing"||syncStatus==="offline"?.55:1}}><RefreshCw size={11}/>{syncStatus==="syncing"?"Retrying…":"Retry"}</button>}<div className="top-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks, descriptions & projects…"/>{search ? <button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch("")} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:0,background:"transparent",color:"inherit",cursor:"pointer",padding:4}}><X size={15}/></button> : <kbd>⌕</kbd>}</div><div style={{position:"relative"}}><button className="icon-button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={()=>{const next=!notificationsOpen;setNotificationsOpen(next);if(next)loadNotifications();}} style={{position:"relative"}}><Bell size={18}/>{unreadNotifications>0&&<span style={{position:"absolute",right:5,top:4,minWidth:15,height:15,padding:"0 3px",borderRadius:99,background:"#f06b57",color:"#fff",fontSize:9,fontWeight:800,display:"grid",placeItems:"center"}}>{unreadNotifications>9?"9+":unreadNotifications}</span>}</button>{notificationsOpen&&<section role="dialog" aria-label="Notifications" style={{position:"absolute",right:0,top:48,width:360,maxWidth:"88vw",maxHeight:"min(70vh,520px)",overflowY:"auto",zIndex:130,padding:14,border:"1px solid var(--line,#343a3c)",borderRadius:15,background:"var(--panel,#191c1e)",color:"var(--text,#f4f2ef)",boxShadow:"0 22px 60px #0009"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}><b style={{fontSize:14}}>Notifications</b><div style={{display:"flex",gap:10,alignItems:"center"}}>{unreadNotifications>0&&<button type="button" onClick={markAllNotificationsRead} style={{border:0,background:"transparent",color:"var(--accent,#ff9878)",fontSize:11,cursor:"pointer"}}>Mark all read</button>}<button type="button" aria-label="Close notifications" onClick={()=>setNotificationsOpen(false)} style={{border:0,background:"transparent",color:"inherit",fontSize:18,cursor:"pointer"}}>×</button></div></div>{notificationsLoading?<p className="empty-state">Loading notifications…</p>:!notifications.length?<p className="empty-state">You’re all caught up. New task assignments will appear here.</p>:notifications.map(item=><button key={item.id} type="button" onClick={()=>openNotification(item)} style={{display:"grid",width:"100%",textAlign:"left",gap:4,padding:"11px 9px",border:0,borderTop:"1px solid var(--line,#343a3c)",background:item.read_at?"transparent":"var(--surface-muted,rgba(240,107,87,.09))",color:"inherit",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}><b style={{fontSize:12}}>{item.title}</b>{!item.read_at&&<span style={{width:7,height:7,borderRadius:9,background:"#f06b57",flexShrink:0}}/>}</span><span style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.45}}>{item.body}</span><span style={{fontSize:10,color:"var(--muted,#a9b0b2)"}}>{new Date(item.created_at).toLocaleString()}</span></button>)}</section>}</div><div className="top-avatar">{userInitials}</div></div></header>
+        <header className="topbar"><button className="mobile-menu-toggle" type="button" aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"} aria-controls="workspace-sidebar" aria-expanded={mobileMenuOpen} onClick={() => setMobileMenuOpen(value => !value)}><Menu size={20}/></button><div className="breadcrumb"><span>Workspace</span><span className="crumb-slash">/</span><b>{active}</b></div><button type="button" aria-label={"How to use " + active} title={"How to use " + active} onClick={() => setGuideOpen(value => !value)} style={{width:15,height:15,minWidth:15,padding:0,marginLeft:5,border:"1px solid var(--muted,#737b7e)",borderRadius:"50%",background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:9,lineHeight:"13px",fontWeight:700,cursor:"pointer",opacity:.72}}>!</button><span role="status" aria-live="polite" title={syncStatus==="synced"?"All changes synced":syncStatus==="syncing"?"Syncing changes":syncStatus==="offline"?"Offline — changes stay on this device":syncStatus==="error"?"Sync paused — changes remain on this device":"Changes waiting to sync"} style={{display:"inline-flex",alignItems:"center",gap:5,marginLeft:10,whiteSpace:"nowrap",fontSize:10,color:"var(--muted,#9ba2a4)"}}><span style={{width:6,height:6,borderRadius:"50%",background:syncStatus==="synced"?"#64c995":syncStatus==="syncing"?"#e9b65e":syncStatus==="error"?"#e58b78":"#d8a65c"}}/>{syncStatus==="synced"?"Synced":syncStatus==="syncing"?"Syncing":syncStatus==="offline"?"Offline":syncStatus==="error"?"Sync paused":pendingSyncCount+" waiting"}</span>{(pendingSyncCount>0||syncStatus==="error")&&<button type="button" onClick={retryFailedOfflineChanges} disabled={syncStatus==="syncing"||syncStatus==="offline"} title={syncStatus==="offline"?"Reconnect to retry pending changes":"Retry pending changes"} aria-label="Retry offline changes" style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 8px",border:"1px solid var(--line,#303538)",borderRadius:7,background:"transparent",color:"var(--muted,#9ba2a4)",fontSize:10,cursor:syncStatus==="syncing"||syncStatus==="offline"?"not-allowed":"pointer",opacity:syncStatus==="syncing"||syncStatus==="offline"?.55:1}}><RefreshCw size={11}/>{syncStatus==="syncing"?"Retrying…":"Retry"}</button>}<div className="top-actions"><div className="search-box"><Search size={16}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search tasks, descriptions & projects…"/>{search ? <button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch("")} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",border:0,background:"transparent",color:"inherit",cursor:"pointer",padding:4}}><X size={15}/></button> : <kbd>⌕</kbd>}</div><div style={{position:"relative"}}><button className="icon-button" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={()=>{const next=!notificationsOpen;setNotificationsOpen(next);if(next)loadNotifications();}} style={{position:"relative"}}><Bell size={18}/>{unreadNotifications>0&&<span style={{position:"absolute",right:5,top:4,minWidth:15,height:15,padding:"0 3px",borderRadius:99,background:"#f06b57",color:"#fff",fontSize:9,fontWeight:800,display:"grid",placeItems:"center"}}>{unreadNotifications>9?"9+":unreadNotifications}</span>}</button>{notificationsOpen&&<section role="dialog" aria-label="Notifications" style={{position:"absolute",right:0,top:48,width:360,maxWidth:"88vw",maxHeight:"min(70vh,520px)",overflowY:"auto",zIndex:130,padding:14,border:"1px solid var(--line,#343a3c)",borderRadius:15,background:"var(--panel,#191c1e)",color:"var(--text,#f4f2ef)",boxShadow:"0 22px 60px #0009"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:10}}><b style={{fontSize:14}}>Notifications</b><div style={{display:"flex",gap:10,alignItems:"center"}}>{unreadNotifications>0&&<button type="button" onClick={markAllNotificationsRead} style={{border:0,background:"transparent",color:"var(--accent,#ff9878)",fontSize:11,cursor:"pointer"}}>Mark all read</button>}<button type="button" aria-label="Close notifications" onClick={()=>setNotificationsOpen(false)} style={{border:0,background:"transparent",color:"inherit",fontSize:18,cursor:"pointer"}}>×</button></div></div>{notificationsLoading?<p className="empty-state">Loading notifications…</p>:!notifications.length?<p className="empty-state">You’re all caught up. New task assignments will appear here.</p>:notifications.map(item=><button key={item.id} type="button" onClick={()=>openNotification(item)} style={{display:"grid",width:"100%",textAlign:"left",gap:4,padding:"11px 9px",border:0,borderTop:"1px solid var(--line,#343a3c)",background:item.read_at?"transparent":"var(--surface-muted,rgba(240,107,87,.09))",color:"inherit",cursor:"pointer"}}><span style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}><b style={{fontSize:12}}>{item.title}</b>{!item.read_at&&<span style={{width:7,height:7,borderRadius:9,background:"#f06b57",flexShrink:0}}/>}</span><span style={{fontSize:12,color:"var(--muted,#a9b0b2)",lineHeight:1.45}}>{item.body}</span><span style={{fontSize:10,color:"var(--muted,#a9b0b2)"}}>{new Date(item.created_at).toLocaleString()}</span></button>)}</section>}</div><div className="top-avatar">{userInitials}</div></div></header>
         <div className="content">
           <div className="welcome-row"><div><div className="eyebrow"><span className="eyebrow-dot"/> YOUR WORKSPACE</div><h1>{heading}</h1><p className="subtitle">{active==="Overview"?"A little progress each day adds up to big results.":"Your DailyManager workspace, all in one place."}</p></div>{!selectedFeature && ["Overview","My tasks","Task board","Task table","Planner","Calendar","Projects","Notes"].includes(active) && <button className="primary-button" onClick={()=>active==="Projects"?create("project"):active==="Notes"?create("note"):openTaskComposer()}><Plus size={17}/> {active==="Projects"?"New project":active==="Notes"?"New note":"New task"}</button>}</div>
           {selectedFeature && active===selectedFeature.name && <section className="panel feature-detail-screen">
