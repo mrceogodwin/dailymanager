@@ -18,7 +18,9 @@ function validId(value) {
 
 function checkList(value, key) {
   if (value !== undefined && (!Array.isArray(value) || value.length > MAX_RECORDS)) {
-    const error = new Error("The " + key.replaceAll("_", " ") + " section is invalid or too large.");\n    error.status = 400;\n    throw error;
+    const error = new Error("The " + key.replaceAll("_", " ") + " section is invalid or too large.");
+    error.status = 400;
+    throw error;
   }
   return Array.isArray(value) ? value : [];
 }
