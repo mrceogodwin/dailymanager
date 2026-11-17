@@ -28,14 +28,14 @@ export async function POST(request) {
   if (!user) return NextResponse.json({ error: "Please sign in." }, { status: 401 });
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request." }, { status: 400 }); }
-  const interval = body?.interval === "annual" ? "annual" : body?.interval === "monthly" ? "monthly" : null;
+  const interval = body?.interval === "monthly" ? "monthly" : null;
   const mode = getProviderMode();
   const client = await pool.connect();
   try {
     const workspace = await getWorkspaceForUser(user.id);
     if (!workspace) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     if (String(workspace.owner_user_id) !== String(user.id)) return NextResponse.json({ error: "Only the workspace owner can manage billing." }, { status: 403 });
-    if (!interval) return NextResponse.json({ error: "Choose a valid billing interval." }, { status: 400 });
+    if (!interval) return NextResponse.json({ error: "DailyManager currently accepts monthly subscriptions only." }, { status: 400 });
     const config = await getConfig(mode);
     const productId = config[interval === "annual" ? "annual_product_id" : "monthly_product_id"];
     const amountMinor = toMinorUnits(config[interval === "annual" ? "annual_amount" : "monthly_amount"]);
