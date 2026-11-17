@@ -302,7 +302,7 @@ export default function Home() {
       setFailedSyncCount(0);
       setSyncStatus("syncing");
       window.dispatchEvent(new Event("online"));
-      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "No failed offline changes need retrying.");
+      window.dispatchEvent(new Event("online"));\n      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "Retrying changes waiting to sync.");
     } catch (error) { setNotice(error.message || "Could not retry offline changes."); }
   }
 
@@ -439,7 +439,7 @@ export default function Home() {
             syncedCount += 1;
           } catch (itemError) {
             const attemptCount = (item.attempt_count || 0) + 1;
-            const permanentClientError = [400, 404, 409, 422].includes(itemError.status);
+            const permanentClientError = [400, 401, 403, 404, 409, 410, 422].includes(itemError.status);
             await updateOfflineMutation(item.id, {
               state: permanentClientError ? "failed" : "pending",
               attempt_count: attemptCount,
