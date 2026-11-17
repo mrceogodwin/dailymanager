@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { pool } from "../../../../lib/db";
-import { hashToken } from "../../../../lib/session";
-import { isSameOriginMutation } from "../../../../lib/request-security";
+import { pool } from "../../../../../lib/db";
+import { hashToken } from "../../../../../lib/session";
+import { isSameOriginMutation } from "../../../../../lib/request-security";
 
 export const runtime = "nodejs";
 
