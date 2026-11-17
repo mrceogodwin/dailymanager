@@ -32,8 +32,11 @@ function validateBackup(value) {
       billing_payments: 0
     };
     const pending = Array.isArray(value.pending_offline_changes) ? value.pending_offline_changes.length : 0;
+    const completeness = value.snapshot_completeness || snapshot.snapshot_meta || null;
     if (value.pending_offline_changes !== undefined && !Array.isArray(value.pending_offline_changes)) throw new Error("Pending offline changes must be a list.");
-    return { kind: "On-device backup", workspaceName: snapshot.workspace.name || "Unnamed workspace", workspaceId: String(value.workspace_id || snapshot.workspace.id), timestamp: value.exported_at || value.saved_at, counts, pending, warning: pending ? "This backup contains queued offline changes. They are not replayed by this preview and must be reconciled carefully before any restore." : "This device snapshot is a local copy of workspace data. Preview only: nothing has been imported or changed." };
+    const partial = completeness?.complete === false;
+    const warning = [partial ? "This device snapshot is incomplete: some workspace records were not included in the local cache." : "", pending ? "This backup contains queued offline changes. They are not replayed by this preview and must be reconciled carefully before any restore." : "", "This is a local device snapshot. Preview only: nothing has been imported or changed."].filter(Boolean).join(" ");
+    return { kind: "On-device backup", workspaceName: snapshot.workspace.name || "Unnamed workspace", workspaceId: String(value.workspace_id || snapshot.workspace.id), timestamp: value.exported_at || value.saved_at, counts, pending, completeness, warning };
   }
   throw new Error("Unrecognized backup format. Choose a DailyManager workspace export or on-device backup.");
 }
@@ -126,7 +129,8 @@ export default function RestorePreviewPage() {
             <div style={{padding:13,borderRadius:11,background:"#1b2420",border:"1px solid #34443c"}}><div style={{fontSize:22,fontWeight:800}}>{totalRecords}</div><div style={{fontSize:11,color:"#b3c1b9",marginTop:4}}>Total listed records</div></div>
             {preview.pending>0&&<div style={{padding:13,borderRadius:11,background:"#2b2417",border:"1px solid #6b5730"}}><div style={{fontSize:22,fontWeight:800,color:"#f1cf8c"}}>{preview.pending}</div><div style={{fontSize:11,color:"#d8c69e",marginTop:4}}>Pending offline changes</div></div>}
           </div>
-          <p style={{fontSize:12,lineHeight:1.65,color:"#d4ddd7",marginTop:18}}>{preview.warning}</p>
+          {preview.completeness?.counts && <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6}}>Snapshot coverage: {preview.completeness.loaded?.tasks ?? preview.counts.tasks}/{preview.completeness.counts.tasks_total ?? "?"} tasks · {preview.completeness.loaded?.notes ?? preview.counts.notes}/{preview.completeness.counts.notes_total ?? "?"} notes · {preview.completeness.loaded?.projects ?? preview.counts.projects}/{preview.completeness.counts.projects_total ?? "?"} projects · {preview.completeness.loaded?.members ?? preview.counts.members}/{preview.completeness.counts.members_total ?? "?"} members.</p>}
+          <p style={{fontSize:12,lineHeight:1.65,color:preview.completeness?.complete===false?"#f0c49e":"#d4ddd7",marginTop:18}}>{preview.warning}</p>
           <button type="button" onClick={checkAgainstWorkspace} disabled={checking} style={{marginTop:10,padding:"12px 15px",border:0,borderRadius:10,background:"#ffc09d",color:"#291109",fontWeight:800,cursor:checking?"wait":"pointer"}}>{checking?"Checking workspace…":"Check against my workspace"}</button>
           <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6}}>This sends the selected backup to a private, owner-only server check. It performs read-only comparisons and makes no database changes.</p>
         </section>}
