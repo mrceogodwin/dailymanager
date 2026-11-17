@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { pool } from "../../../../lib/db";
-import { getSessionUser } from "../../../../lib/session";
-import { getWorkspaceForUser } from "../../../../lib/workspace-context";
-import { isSameOriginMutation } from "../../../../lib/request-security";
+import { pool } from "../../../../../lib/db";
+import { getSessionUser } from "../../../../../lib/session";
+import { getWorkspaceForUser } from "../../../../../lib/workspace-context";
+import { isSameOriginMutation } from "../../../../../lib/request-security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
