@@ -76,7 +76,9 @@ export async function POST(request) {
       return result;
     }
     if (type === "subscription.create") {
-      await updateMatchedSubscription("UPDATE billing_customers SET provider_subscription_id=COALESCE($2,provider_subscription_id),provider_customer_id=COALESCE($3,provider_customer_id),updated_at=NOW() WHERE provider='paystack' AND (provider_subscription_id=$1 OR ($1 IS NULL AND provider_customer_id=$3))", [subscriptionCode, subscriptionCode, customerCode]);
+      if (!hasSubscriptionIdentity) throw new Error("Paystack subscription.create event is missing subscription/customer identity.");
+      const linked = await client.query("UPDATE billing_customers SET provider_subscription_id=COALESCE($1,provider_subscription_id),provider_customer_id=COALESCE($2,provider_customer_id),updated_at=NOW() WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2))", [subscriptionCode, customerCode]);
+      if (!linked.rowCount) throw new Error("Paystack subscription.create event did not match a saved customer; retry required.");
     }
     if (type === "invoice.payment_failed") {
       await updateMatchedSubscription("UPDATE billing_customers SET status='past_due',updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
@@ -88,7 +90,7 @@ export async function POST(request) {
       const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN LOWER(COALESCE($2,''))='complete' THEN 'completed' ELSE 'cancelled' END,cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [data.status || ""]);
       for (const row of result.rows) await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
     }
-    if (type === "invoice.update" && hasSubscriptionIdentity && String(data.status || "").toLowerCase() === "success") {
+    if (type === "invoice.update" && String(data.status || "").toLowerCase() === "success") {
       const periodStart = typeof data.period_start === "string" && !Number.isNaN(Date.parse(data.period_start)) ? new Date(data.period_start).toISOString() : null;
       const periodEnd = typeof data.period_end === "string" && !Number.isNaN(Date.parse(data.period_end)) ? new Date(data.period_end).toISOString() : null;
       const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN cancel_at_period_end THEN 'non_renewing' ELSE 'active' END,current_period_start=COALESCE($2::timestamptz,current_period_start),current_period_end=COALESCE($3::timestamptz,current_period_end),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [periodStart, periodEnd]);
