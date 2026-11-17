@@ -172,7 +172,8 @@ export default function Home() {
   const [editingProjectId, setEditingProjectId] = useState(null);
   const [draft, setDraft] = useState({ title: "", body: "", description: "", due_at: "", project_id: "", priority: "medium", assigned_to: "" });
   const [notice, setNotice] = useState("");
-  const [pendingSyncCount, setPendingSyncCount] = useState(0);\n  const [failedSyncCount, setFailedSyncCount] = useState(0);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [failedSyncCount, setFailedSyncCount] = useState(0);
   const [syncStatus, setSyncStatus] = useState("synced");
   const [notifications, setNotifications] = useState([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -292,7 +293,20 @@ export default function Home() {
     }
   }
 
-  async function retryFailedOfflineChanges() {\n    if (!user?.id || !workspace?.id || typeof navigator === "undefined" || !navigator.onLine) { setNotice("Reconnect to the internet before retrying saved changes."); return; }\n    try {\n      const queued = await listOfflineMutations(user.id, workspace.id);\n      const failed = queued.filter(item => item.state === "failed");\n      for (const item of failed) await updateOfflineMutation(item.id, { state: "pending", last_error: "" });\n      setFailedSyncCount(0);\n      setSyncStatus("syncing");\n      window.dispatchEvent(new Event("online"));\n      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "No failed offline changes need retrying.");\n    } catch (error) { setNotice(error.message || "Could not retry offline changes."); }\n  }\n\n  async function queueOfflineWorkspaceChange(payload) {
+  async function retryFailedOfflineChanges() {
+    if (!user?.id || !workspace?.id || typeof navigator === "undefined" || !navigator.onLine) { setNotice("Reconnect to the internet before retrying saved changes."); return; }
+    try {
+      const queued = await listOfflineMutations(user.id, workspace.id);
+      const failed = queued.filter(item => item.state === "failed");
+      for (const item of failed) await updateOfflineMutation(item.id, { state: "pending", last_error: "" });
+      setFailedSyncCount(0);
+      setSyncStatus("syncing");
+      window.dispatchEvent(new Event("online"));
+      setNotice(failed.length ? `Retrying ${failed.length} failed offline change(s).` : "No failed offline changes need retrying.");
+    } catch (error) { setNotice(error.message || "Could not retry offline changes."); }
+  }
+
+  async function queueOfflineWorkspaceChange(payload) {
     if (!user?.id || !workspace?.id) throw new Error("Open a workspace online before making offline changes.");
     const localId = ["task", "project", "note"].includes(payload.kind) ? "local-" + Date.now() + "-" + Math.random().toString(16).slice(2) : null;
     await enqueueOfflineMutation({
@@ -749,7 +763,8 @@ export default function Home() {
 
   function exportProjectReport(project, projectTasks) {
     const rows = [["Project","Task","Assignee","Priority","Due date","Status","Description"], ...projectTasks.map(task => [project.name, task.title, task.assignee_name || "Unassigned", task.priority || "medium", formatDueDateForExport(task.due_at), task.status || "todo", task.description || ""])];
-    const csv = rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(",")).join("\r\n");
+    const csv = rows.map(row => row.map(value => `"${String(value ?? "").replaceAll('"','""')}"`).join(",")).join("\r
+");
     const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -811,7 +826,8 @@ export default function Home() {
 
   async function createBulkTasks(event) {
     event.preventDefault();
-    const titles = [...new Set(bulkTaskLines.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))];
+    const titles = [...new Set(bulkTaskLines.split(/\r?
+/).map((line) => line.trim()).filter(Boolean))];
     if (!titles.length) { setNotice("Add at least one task title."); return; }
     if (titles.length > 30) { setNotice("You can create up to 30 tasks at a time."); return; }
     setBusy(true);
@@ -820,7 +836,8 @@ export default function Home() {
       const created = results.filter((result) => result.status === "fulfilled").length;
       const failed = results.length - created;
       await refresh();
-      setBulkTaskLines(results.length === created ? "" : titles.filter((_, index) => results[index].status === "rejected").join("\n"));
+      setBulkTaskLines(results.length === created ? "" : titles.filter((_, index) => results[index].status === "rejected").join("
+"));
       setNotice(failed ? `${created} tasks created; ${failed} could not be saved. Failed titles remain in the list.` : `${created} tasks created successfully.`);
     } catch (error) { setNotice(error.message || "Could not create these tasks."); }
     finally { setBusy(false); }
@@ -1354,14 +1371,45 @@ export default function Home() {
             </> : selectedFeature.name === "Bulk task creator" ? <>
               <div className="feature-detail-card"><div className="feature-detail-icon"><ClipboardList size={22}/></div><div><h3>Create tasks in one go</h3><p>Enter one task per line. Duplicate titles are removed, and each task is saved to your workspace individually.</p></div></div>
               <form onSubmit={createBulkTasks} className="bulk-task-form">
-                <label>Task titles<textarea value={bulkTaskLines} onChange={(event)=>setBulkTaskLines(event.target.value)} rows={8} maxLength={12000} placeholder={"Prepare weekly report\nFollow up with client\nReview project timeline"} /></label>
+                <label>Task titles<textarea value={bulkTaskLines} onChange={(event)=>setBulkTaskLines(event.target.value)} rows={8} maxLength={12000} placeholder={"Prepare weekly report
+Follow up with client
+Review project timeline"} /></label>
                 <div className="bulk-task-options"><label>Priority<select value={bulkTaskPriority} onChange={(event)=>setBulkTaskPriority(event.target.value)}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></select></label><label>Project<select value={bulkTaskProject} onChange={(event)=>setBulkTaskProject(event.target.value)}><option value="">Personal / no project</option>{projects.map((project)=><option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div>
-                <div className="bulk-task-footer"><span>{bulkTaskLines.split(/\r?\n/).filter((line)=>line.trim()).length} lines · maximum 30 tasks</span><button type="submit" disabled={busy || !bulkTaskLines.trim()}>{busy ? "Creating tasks…" : "Create tasks"}</button></div>
+                <div className="bulk-task-footer"><span>{bulkTaskLines.split(/\r?
+/).filter((line)=>line.trim()).length} lines · maximum 30 tasks</span><button type="submit" disabled={busy || !bulkTaskLines.trim()}>{busy ? "Creating tasks…" : "Create tasks"}</button></div>
               </form>
             </> : selectedFeature.name === "Project Template gallery" ? <>
               <div className="feature-detail-card"><div className="feature-detail-icon"><FolderKanban size={22}/></div><div><h3>Project Template Gallery</h3><p>Choose a project starter to prefill the new-project form. Review the name and description before creating your project.</p></div></div>
               <div className="feature-template-grid">
-                {[{name:"Website launch",description:"Plan a website delivery from kickoff to launch.",body:"Goal: Launch a reliable website.\n\nMilestones:\n1. Confirm requirements and scope\n2. Complete design and content\n3. Build and test core pages\n4. Review accessibility and mobile layouts\n5. Deploy and verify launch"},{name:"Marketing campaign",description:"Coordinate campaign planning and execution.",body:"Goal: Deliver a measurable marketing campaign.\n\nMilestones:\n1. Define audience and objective\n2. Agree on message and creative assets\n3. Prepare channel schedule\n4. Launch campaign\n5. Review results and next steps"},{name:"Product development",description:"Organize discovery, delivery and quality checks.",body:"Goal: Deliver a useful product increment.\n\nMilestones:\n1. Define user problem and success criteria\n2. Prioritize requirements\n3. Design and implement\n4. Test with representative users\n5. Release and collect feedback"},{name:"Operations improvement",description:"Structure an internal process improvement project.",body:"Goal: Improve an operational workflow.\n\nMilestones:\n1. Document current process\n2. Identify bottlenecks and risks\n3. Agree on proposed changes\n4. Pilot and measure results\n5. Document the new process"}].map(template=><button key={template.name} type="button" className="feature-template-card" onClick={()=>{setDraft({title:template.name,body:template.body,description:template.body,due_at:"",project_id:"",priority:"medium"});setSelectedFeature(null);setActive("Projects");setModal("project");}}><span className="feature-template-icon"><FolderKanban size={19}/></span><b>{template.name}</b><p>{template.description}</p><span className="feature-template-action">Use project template <ArrowRight size={14}/></span></button>)}
+                {[{name:"Website launch",description:"Plan a website delivery from kickoff to launch.",body:"Goal: Launch a reliable website.
+
+Milestones:
+1. Confirm requirements and scope
+2. Complete design and content
+3. Build and test core pages
+4. Review accessibility and mobile layouts
+5. Deploy and verify launch"},{name:"Marketing campaign",description:"Coordinate campaign planning and execution.",body:"Goal: Deliver a measurable marketing campaign.
+
+Milestones:
+1. Define audience and objective
+2. Agree on message and creative assets
+3. Prepare channel schedule
+4. Launch campaign
+5. Review results and next steps"},{name:"Product development",description:"Organize discovery, delivery and quality checks.",body:"Goal: Deliver a useful product increment.
+
+Milestones:
+1. Define user problem and success criteria
+2. Prioritize requirements
+3. Design and implement
+4. Test with representative users
+5. Release and collect feedback"},{name:"Operations improvement",description:"Structure an internal process improvement project.",body:"Goal: Improve an operational workflow.
+
+Milestones:
+1. Document current process
+2. Identify bottlenecks and risks
+3. Agree on proposed changes
+4. Pilot and measure results
+5. Document the new process"}].map(template=><button key={template.name} type="button" className="feature-template-card" onClick={()=>{setDraft({title:template.name,body:template.body,description:template.body,due_at:"",project_id:"",priority:"medium"});setSelectedFeature(null);setActive("Projects");setModal("project");}}><span className="feature-template-icon"><FolderKanban size={19}/></span><b>{template.name}</b><p>{template.description}</p><span className="feature-template-action">Use project template <ArrowRight size={14}/></span></button>)}
               </div>
             </> : selectedFeature.name === "Task Template gallery" ? <>
               <div className="feature-detail-card"><div className="feature-detail-icon"><ClipboardList size={22}/></div><div><h3>Start with a task template</h3><p>Choose a starter workflow. The template pre-fills the task form, and you can edit everything before saving it to your workspace.</p></div></div>
@@ -1435,7 +1483,8 @@ export default function Home() {
           </section>}
           {active==="Task table" && <section className="panel">
             <div className="panel-heading"><div><h2>Task table</h2><p>Scan and update task records in a structured view.</p></div><button className="primary-button" onClick={()=>openTaskComposer()}><Plus size={15}/> New task</button></div>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",margin:"8px 0 16px"}}><input aria-label="Search task table" placeholder="Search tasks…" value={search} onChange={e=>{setSearch(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,flex:"1 1 220px",maxWidth:420}}/><select aria-label="Filter by status" value={taskTableStatusFilter} onChange={e=>{setTaskTableStatusFilter(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,width:"auto",minWidth:125,padding:"9px 10px"}}><option value="all">All statuses</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Completed</option><option value="cancelled">Cancelled</option></select><select aria-label="Filter by priority" value={taskTablePriorityFilter} onChange={e=>{setTaskTablePriorityFilter(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,width:"auto",minWidth:125,padding:"9px 10px"}}><option value="all">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><select aria-label="Filter by project" value={taskTableProjectFilter} onChange={e=>{setTaskTableProjectFilter(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,width:"auto",minWidth:135,padding:"9px 10px"}}><option value="all">All projects</option><option value="personal">Personal</option>{projects.map(project=><option key={project.id} value={String(project.id)}>{project.name}</option>)}</select><label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a9b0b2"}}>Sort<select aria-label="Sort task table" value={taskSort} onChange={e=>setTaskSort(e.target.value)} style={{...inputStyle,width:"auto",minWidth:145,padding:"9px 10px"}}><option value="due">Due date</option><option value="priority">Priority</option><option value="recent">Recently updated</option><option value="title">Name A–Z</option></select></label><button type="button" className="project-view-tasks" onClick={()=>{const rows=[["Task","Description","Project","Priority","Due date","Status"],...taskTableRows.map(task=>[task.title,task.description||"",task.project_name||"Personal",task.priority||"medium",formatDueDateForExport(task.due_at),task.status||"todo"])];const csv=rows.map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\r\n");const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="dailymanager-tasks.csv";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);setNotice(`Exported ${taskTableRows.length} tasks.`);}}><Files size={14}/> Export CSV</button></div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center",margin:"8px 0 16px"}}><input aria-label="Search task table" placeholder="Search tasks…" value={search} onChange={e=>{setSearch(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,flex:"1 1 220px",maxWidth:420}}/><select aria-label="Filter by status" value={taskTableStatusFilter} onChange={e=>{setTaskTableStatusFilter(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,width:"auto",minWidth:125,padding:"9px 10px"}}><option value="all">All statuses</option><option value="todo">To do</option><option value="in_progress">In progress</option><option value="done">Completed</option><option value="cancelled">Cancelled</option></select><select aria-label="Filter by priority" value={taskTablePriorityFilter} onChange={e=>{setTaskTablePriorityFilter(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,width:"auto",minWidth:125,padding:"9px 10px"}}><option value="all">All priorities</option><option value="urgent">Urgent</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><select aria-label="Filter by project" value={taskTableProjectFilter} onChange={e=>{setTaskTableProjectFilter(e.target.value);setSelectedTaskIds([]);}} style={{...inputStyle,width:"auto",minWidth:135,padding:"9px 10px"}}><option value="all">All projects</option><option value="personal">Personal</option>{projects.map(project=><option key={project.id} value={String(project.id)}>{project.name}</option>)}</select><label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"#a9b0b2"}}>Sort<select aria-label="Sort task table" value={taskSort} onChange={e=>setTaskSort(e.target.value)} style={{...inputStyle,width:"auto",minWidth:145,padding:"9px 10px"}}><option value="due">Due date</option><option value="priority">Priority</option><option value="recent">Recently updated</option><option value="title">Name A–Z</option></select></label><button type="button" className="project-view-tasks" onClick={()=>{const rows=[["Task","Description","Project","Priority","Due date","Status"],...taskTableRows.map(task=>[task.title,task.description||"",task.project_name||"Personal",task.priority||"medium",formatDueDateForExport(task.due_at),task.status||"todo"])];const csv=rows.map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\r
+");const blob=new Blob(["\uFEFF",csv],{type:"text/csv;charset=utf-8;"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="dailymanager-tasks.csv";document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);setNotice(`Exported ${taskTableRows.length} tasks.`);}}><Files size={14}/> Export CSV</button></div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",margin:"0 0 12px",padding:"10px 12px",border:"1px solid #303638",borderRadius:11,background:"#15191a"}}><span style={{fontSize:12,color:"#c1c8ca"}}>{selectedTaskIds.length} selected</span><div style={{display:"flex",gap:7,flexWrap:"wrap"}}><button type="button" className="project-view-tasks" disabled={!selectedTaskIds.length||busy} onClick={()=>bulkSetTaskStatus("in_progress")}>Start selected</button><button type="button" className="project-view-tasks" disabled={!selectedTaskIds.length||busy} onClick={()=>bulkSetTaskStatus("done")}>Complete selected</button><button type="button" className="project-view-tasks" disabled={!selectedTaskIds.length||busy} onClick={()=>setSelectedTaskIds([])}>Clear selection</button></div></div><div style={{overflowX:"auto",border:"1px solid #303638",borderRadius:12}}>
               <table style={{width:"100%",borderCollapse:"collapse",minWidth:720,textAlign:"left",fontSize:12}}>
                 <thead><tr style={{background:"#171a1b",color:"#a9b0b2"}}><th scope="col" style={{padding:"12px 13px",borderBottom:"1px solid #303638"}}><input type="checkbox" aria-label="Select all visible tasks" checked={allVisibleTasksSelected} onChange={event=>setSelectedTaskIds(ids=>event.target.checked?[...new Set([...ids,...visibleTaskIds])]:ids.filter(id=>!visibleTaskIds.includes(id)))}/></th>{["Task","Project","Priority","Due date","Status","Actions"].map(label=><th key={label} scope="col" style={{padding:"12px 13px",fontWeight:700,borderBottom:"1px solid #303638",whiteSpace:"nowrap"}}>{label}</th>)}</tr></thead>
