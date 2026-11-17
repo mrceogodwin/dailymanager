@@ -39,3 +39,11 @@ The current application still contains compatibility checks for older databases.
 10. Verify `billing_customers.current_period_end` and the partial expiry index exist before deploying code that reconciles expired entitlements.
 11. The application preserves Team access until the recorded paid period ends after cancellation or a failed renewal. Expired trials and expired paid periods are reconciled to the Free plan on the next authenticated workspace request.
 12. This migration is not applied automatically. Back up Neon, review the target schema, apply it deliberately, and verify the column/index before enabling the corresponding release.
+
+## Account recovery and email verification
+
+13. Before enabling password reset or email verification in a deployed environment, take a Neon backup and review `010_account_security_tokens.sql` against the target schema.
+14. Apply migration 010 deliberately, then verify that `app_users.email_verified_at` exists and that `account_action_tokens` plus its indexes were created.
+15. The forgot-password, reset-password, and email-verification endpoints depend on these schema objects. Until migration 010 is applied, those account-security flows are not ready for production use.
+16. Configure and verify `RESEND_API_KEY`, `DAILYMANAGER_FROM_EMAIL`, and `DAILYMANAGER_APP_URL` in the intended Vercel environment before testing email delivery. Use an HTTPS application URL and a sender identity verified with Resend.
+17. Do not apply migration 010 from a public request handler or assume that a successful Vercel build means the database migration or email provider is configured.
