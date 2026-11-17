@@ -4,6 +4,9 @@ import { pool } from "../../../../lib/db";
 import { createSession } from "../../../../lib/session";
 import { checkAuthRateLimit } from "../../../../lib/rate-limit";
 import { isSameOriginMutation } from "../../../../lib/request-security";
+import { randomBytes } from "node:crypto";
+import { hashToken } from "../../../../lib/session";
+import { sendAccountActionEmail } from "../../../../lib/account-email";
 
 export const runtime = "nodejs";
 
@@ -63,7 +66,16 @@ export async function POST(request) {
         { status: 503 }
       );
     }
-    return NextResponse.json({ user }, { status: 201 });
+    let verificationEmailSent = false;
+    try {
+      const token = randomBytes(32).toString("base64url");
+      await query("INSERT INTO account_action_tokens (user_id,token_hash,purpose,expires_at) VALUES ($1,$2,'email_verification',NOW()+INTERVAL '24 hours')", [user.id, hashToken(token)]);
+      await sendAccountActionEmail({ to: user.email, name: user.name, purpose: "email_verification", token });
+      verificationEmailSent = true;
+    } catch (emailError) {
+      console.error("DailyManager verification email could not be sent after signup", emailError);
+    }
+    return NextResponse.json({ user, verificationEmailSent }, { status: 201 });
   } catch (error) {
     if (client) {
       try { await client.query("ROLLBACK"); } catch {}
