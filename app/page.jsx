@@ -349,6 +349,7 @@ export default function Home() {
             projects: data.projects || [],
             notes: data.notes || [],
             members: data.members || [],
+            snapshot_meta: data.snapshot_meta || null,
           });
         } catch (storageError) {
           console.warn("DailyManager could not save the workspace to this device.", storageError);
