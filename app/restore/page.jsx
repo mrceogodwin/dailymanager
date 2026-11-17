@@ -42,7 +42,10 @@ export default function RestorePreviewPage() {
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
-  const [reading, setReading] = useState(false);\n  const [backupPayload, setBackupPayload] = useState(null);\n  const [serverPreview, setServerPreview] = useState(null);\n  const [checking, setChecking] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [backupPayload, setBackupPayload] = useState(null);
+  const [serverPreview, setServerPreview] = useState(null);
+  const [checking, setChecking] = useState(false);
 
   async function inspectFile(event) {
     const file = event.target.files?.[0];
@@ -87,7 +90,8 @@ export default function RestorePreviewPage() {
       setChecking(false);
     }
   }
-\n  const totalRecords = useMemo(() => preview ? Object.values(preview.counts).reduce((sum, count) => sum + count, 0) : 0, [preview]);
+
+  const totalRecords = useMemo(() => preview ? Object.values(preview.counts).reduce((sum, count) => sum + count, 0) : 0, [preview]);
 
   return (
     <main style={{minHeight:"100vh",background:"#0b0d0e",color:"#f4f2ef",padding:"clamp(20px,5vw,56px)",fontFamily:"Arial,sans-serif"}}>
@@ -119,7 +123,9 @@ export default function RestorePreviewPage() {
             <div style={{padding:13,borderRadius:11,background:"#1b2420",border:"1px solid #34443c"}}><div style={{fontSize:22,fontWeight:800}}>{totalRecords}</div><div style={{fontSize:11,color:"#b3c1b9",marginTop:4}}>Total listed records</div></div>
             {preview.pending>0&&<div style={{padding:13,borderRadius:11,background:"#2b2417",border:"1px solid #6b5730"}}><div style={{fontSize:22,fontWeight:800,color:"#f1cf8c"}}>{preview.pending}</div><div style={{fontSize:11,color:"#d8c69e",marginTop:4}}>Pending offline changes</div></div>}
           </div>
-          <p style={{fontSize:12,lineHeight:1.65,color:"#d4ddd7",marginTop:18}}>{preview.warning}</p>\n          <button type="button" onClick={checkAgainstWorkspace} disabled={checking} style={{marginTop:10,padding:"12px 15px",border:0,borderRadius:10,background:"#ffc09d",color:"#291109",fontWeight:800,cursor:checking?"wait":"pointer"}}>{checking?"Checking workspace…":"Check against my workspace"}</button>\n          <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6}}>This sends the selected backup to a private, owner-only server check. It performs read-only comparisons and makes no database changes.</p>
+          <p style={{fontSize:12,lineHeight:1.65,color:"#d4ddd7",marginTop:18}}>{preview.warning}</p>
+          <button type="button" onClick={checkAgainstWorkspace} disabled={checking} style={{marginTop:10,padding:"12px 15px",border:0,borderRadius:10,background:"#ffc09d",color:"#291109",fontWeight:800,cursor:checking?"wait":"pointer"}}>{checking?"Checking workspace…":"Check against my workspace"}</button>
+          <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6}}>This sends the selected backup to a private, owner-only server check. It performs read-only comparisons and makes no database changes.</p>
         </section>}
 
 
@@ -133,7 +139,8 @@ export default function RestorePreviewPage() {
           {(serverPreview.reference_problems || []).length>0 && <ul style={{fontSize:11,color:"#d8c7ad",lineHeight:1.6,paddingLeft:18}}>{serverPreview.reference_problems.map((problem,index)=><li key={index}>{problem}</li>)}</ul>}
           <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6,marginBottom:0}}>No records were inserted, updated or deleted. {serverPreview.recommendation}</p>
         </section>}
-\n        <section style={{marginTop:20,padding:18,border:"1px solid #5c4b31",borderRadius:14,background:"#211d16"}}>
+
+        <section style={{marginTop:20,padding:18,border:"1px solid #5c4b31",borderRadius:14,background:"#211d16"}}>
           <b style={{fontSize:13,color:"#f0d09b"}}>Recovery writes are not enabled yet</b>
           <p style={{fontSize:12,color:"#c9bda7",lineHeight:1.7,marginBottom:0}}>This screen validates a file and can compare it with your current workspace. It does not import, replay offline changes, overwrite records or modify your Neon database. A future restore operation must resolve identity mapping and references, then require your explicit confirmation before writing anything.</p>
         </section>
