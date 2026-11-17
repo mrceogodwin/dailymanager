@@ -18,7 +18,7 @@ function validId(value) {
 
 function checkList(value, key) {
   if (value !== undefined && (!Array.isArray(value) || value.length > MAX_RECORDS)) {
-    throw new Error("The " + key.replaceAll("_", " ") + " section is invalid or too large.");
+    const error = new Error("The " + key.replaceAll("_", " ") + " section is invalid or too large.");\n    error.status = 400;\n    throw error;
   }
   return Array.isArray(value) ? value : [];
 }
@@ -140,6 +140,7 @@ export async function POST(request) {
     }
   } catch (error) {
     console.error("DailyManager recovery preview failed:", error);
-    return NextResponse.json({ error: error.message || "Could not inspect this backup against the current workspace." }, { status: 400, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 500 ? error.status : 500;
+    return NextResponse.json({ error: status < 500 ? (error.message || "The backup could not be validated.") : "The workspace recovery check is temporarily unavailable." }, { status, headers: { "Cache-Control": "private, no-store, max-age=0", "X-Content-Type-Options": "nosniff" } });
   }
 }
