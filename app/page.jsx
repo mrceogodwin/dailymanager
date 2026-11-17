@@ -707,6 +707,15 @@ export default function Home() {
   }
 
   async function revokeAllSessions() {
+    if (user?.id && workspace?.id && typeof navigator !== "undefined" && navigator.onLine) {
+      try {
+        const pending = await listOfflineMutations(user.id, workspace.id);
+        if (pending.length && !window.confirm("There are " + pending.length + " unsynced offline change" + (pending.length === 1 ? "" : "s") + ". Revoking every session will clear this account's saved data from this device. Reconnect and sync first, or continue?")) return;
+      } catch (queueError) {
+        setNotice("Could not check pending offline changes. Sync or export a backup before revoking sessions.");
+        return;
+      }
+    }
     if (!window.confirm("Sign out this account from every device, including this one? You will need to sign in again.")) return;
     setBusy(true);
     try {
