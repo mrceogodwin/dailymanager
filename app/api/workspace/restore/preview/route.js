@@ -62,7 +62,7 @@ export async function POST(request) {
     }
     if (totalRecords > MAX_RECORDS) return NextResponse.json({ error: "This backup contains too many records for one recovery review." }, { status: 413 });
 
-    const projectIds = new Set(collections.projects.map(item => String(item?.id)));
+    for (const key of COLLECTIONS) {\n      if (collections[key].some(item => !item || typeof item !== "object" || Array.isArray(item))) referenceProblems.push("The " + key.replaceAll("_", " ") + " section contains an invalid record.");\n    }\n    const projectIds = new Set(collections.projects.map(item => String(item?.id)));
     const taskIds = new Set(collections.tasks.map(item => String(item?.id)));
     const referenceProblems = [];
     for (const project of collections.projects) if (!validId(project?.id)) referenceProblems.push("A project is missing its record ID.");
@@ -79,11 +79,11 @@ export async function POST(request) {
 
     const client = await pool.connect();
     try {
-      const [projects, tasks, notes, comments] = await Promise.all([
+      const [projects, tasks, notes, comments, currentMembers] = await Promise.all([
         client.query("SELECT id FROM projects WHERE workspace_id = $1", [workspace.id]),
         client.query("SELECT id FROM tasks WHERE workspace_id = $1", [workspace.id]),
         client.query("SELECT id FROM workspace_notes WHERE workspace_id = $1", [workspace.id]),
-        client.query("SELECT id FROM task_comments WHERE workspace_id = $1", [workspace.id]),
+        client.query("SELECT id FROM task_comments WHERE workspace_id = $1", [workspace.id]),\n        client.query("SELECT wm.user_id, LOWER(u.email) AS email FROM workspace_members wm JOIN app_users u ON u.id = wm.user_id WHERE wm.workspace_id = $1", [workspace.id]),
       ]);
       const existing = {
         projects: new Set(projects.rows.map(row => String(row.id))),
@@ -104,11 +104,11 @@ export async function POST(request) {
         source_exported_at: body.exported_at || null,
         total_records: totalRecords,
         record_counts: Object.fromEntries(COLLECTIONS.map(key => [key, collections[key].length])),
-        existing_id_conflicts: conflicts,
+        existing_id_conflicts: conflicts,\n        member_mapping: { source_members: sourceMembers.length, matched_by_email: mappedSourceMembers.length, unmatched_members: unmappedMembers },\n        tasks_with_unmapped_assignees: unmappedAssigneeIds.length,
         reference_problem_count: referenceProblems.length,
         reference_problems: referenceProblems,
         pending_offline_changes: Array.isArray(body.pending_offline_changes) ? body.pending_offline_changes.length : 0,
-        recommendation: "No data was changed. Resolve duplicate IDs and broken references before designing a restore. Recovery writes are not enabled.",
+        recommendation: "No data was changed. A future append-only restore can generate new record IDs, map member identities by email, and leave unmatched assignees unassigned. Billing history, subscriptions, and historical activity are excluded from recovery writes.",
       }, { headers: { "Cache-Control": "private, no-store, max-age=0", "X-Content-Type-Options": "nosniff" } });
     } finally {
       client.release();
