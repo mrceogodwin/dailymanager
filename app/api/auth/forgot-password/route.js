@@ -14,7 +14,7 @@ export async function POST(request) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Submit a valid email address." }, { status: 400 }); }
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email) || email.length > 254) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
 
   try {
     const limit = await checkAuthRateLimit(request, "password_reset", email);
