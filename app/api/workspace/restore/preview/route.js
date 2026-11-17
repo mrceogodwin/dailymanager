@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { pool } from "../../../../lib/db";
 import { getSessionUser } from "../../../../lib/session";
 import { getWorkspaceForUser } from "../../../../lib/workspace-context";
@@ -72,6 +73,7 @@ export async function POST(request) {
     if (totalRecords > MAX_RECORDS) return NextResponse.json({ error: "This backup contains too many records for one recovery review." }, { status: 413 });
 
     const referenceProblems = [];
+    const duplicateSourceIds = {};
     for (const key of COLLECTIONS) {
       if (collections[key].some(item => !item || typeof item !== "object" || Array.isArray(item))) {
         referenceProblems.push("The " + key.replaceAll("_", " ") + " section contains an invalid record.");
@@ -124,11 +126,11 @@ export async function POST(request) {
         preview_only: true,
         writes_performed: false,
         workspace: { id: String(workspace.id), name: workspace.name },
-        source_format: body.format,
+        source_format: body.format,\n        backup_sha256: createHash("sha256").update(rawBody).digest("hex"),
         source_exported_at: body.exported_at || null,
         total_records: totalRecords,
         record_counts: Object.fromEntries(COLLECTIONS.map(key => [key, collections[key].length])),
-        existing_id_conflicts: conflicts,
+        existing_id_conflicts: conflicts,\n        duplicate_source_ids: duplicateSourceIds,
         member_mapping: { source_members: sourceMembers.length, matched_by_email: mappedSourceMembers.length, unmatched_members: unmatchedMembers },
         tasks_with_unmapped_assignees: unmappedAssigneeIds.length,
         reference_problem_count: referenceProblems.length,
