@@ -44,8 +44,35 @@ export async function POST(request) {
     );
     if (!inserted.rowCount) { await client.query("COMMIT"); return NextResponse.json({ received: true, duplicate: true }); }
     if (type === "charge.success" && reference) {
-      const payment = await client.query("SELECT id,workspace_id,amount_minor,currency,plan_code FROM billing_payments WHERE provider='paystack' AND provider_reference=$1 FOR UPDATE", [reference]);
-      if (!payment.rowCount) throw new Error("Payment reference not persisted yet; retry required.");
+      let payment = await client.query("SELECT id,workspace_id,amount_minor,currency,plan_code FROM billing_payments WHERE provider='paystack' AND provider_reference=$1 FOR UPDATE", [reference]);
+      if (!payment.rowCount) {
+        // Subsequent subscription charges have new transaction references that were
+        // not created by our checkout initializer. Link them only through a saved
+        // Paystack customer/subscription identity and the exact saved plan/amount.
+        const customerCode = data.customer?.customer_code || null;
+        const subscriptionCode = data.subscription?.subscription_code || data.subscription_code || null;
+        if (!customerCode && !subscriptionCode) throw new Error("Unknown Paystack charge has no saved subscription identity; retry required.");
+        const saved = await client.query(
+          "SELECT workspace_id,amount_minor,currency,plan_code,billing_interval FROM billing_customers WHERE provider='paystack' AND (($1::text IS NOT NULL AND provider_subscription_id=$1) OR ($2::text IS NOT NULL AND provider_customer_id=$2)) FOR UPDATE",
+          [subscriptionCode, customerCode]
+        );
+        if (!saved.rowCount) throw new Error("Paystack renewal does not match a saved subscription; retry required.");
+        const subscription = saved.rows[0];
+        const eventPlanCode = typeof data.plan === "string" ? data.plan : data.plan?.plan_code || data.plan?.plan_code;
+        if (!subscription.plan_code || (eventPlanCode && eventPlanCode !== subscription.plan_code)) throw new Error("Paystack renewal plan does not match the saved subscription.");
+        if (Number(data.amount) !== Number(subscription.amount_minor) || String(data.currency).toUpperCase() !== String(subscription.currency).toUpperCase()) {
+          throw new Error("Paystack renewal amount or currency mismatch.");
+        }
+        const insertedPayment = await client.query(
+          `INSERT INTO billing_payments (workspace_id,provider,provider_reference,provider_transaction_id,amount_minor,currency,status,plan_code,paid_at,raw_response)
+           VALUES ($1,'paystack',$2,$3,$4,$5,'success',$6,COALESCE($7,NOW()),$8::jsonb)
+           ON CONFLICT (provider_reference) DO NOTHING RETURNING id,workspace_id,amount_minor,currency,plan_code`,
+          [subscription.workspace_id,reference,String(data.id || ""),subscription.amount_minor,subscription.currency,subscription.plan_code,data.paid_at || null,JSON.stringify(event)]
+        );
+        if (insertedPayment.rowCount) payment = insertedPayment;
+        else payment = await client.query("SELECT id,workspace_id,amount_minor,currency,plan_code FROM billing_payments WHERE provider='paystack' AND provider_reference=$1 FOR UPDATE", [reference]);
+      }
+      if (!payment.rowCount) throw new Error("Paystack charge could not be recorded.");
       if (Number(data.amount) !== Number(payment.rows[0].amount_minor) || String(data.currency).toUpperCase() !== String(payment.rows[0].currency).toUpperCase()) {
         throw new Error("Paystack webhook amount or currency mismatch.");
       }
@@ -55,12 +82,12 @@ export async function POST(request) {
         : data.plan?.interval === "monthly" ? "monthly" : null;
       if (!interval) throw new Error("Paystack webhook plan could not be matched to a configured billing interval.");
       await client.query("UPDATE billing_payments SET status='success',provider_transaction_id=$2,paid_at=COALESCE($3,NOW()),raw_response=$4::jsonb,updated_at=NOW() WHERE id=$1",
-        [payment.rows[0].id,String(data.id || ""),data.paid_at || null,JSON.stringify({ webhook_event:type,channel:data.channel || null })]);
+        [payment.rows[0].id,String(data.id || ""),data.paid_at || null,JSON.stringify(event)]);
       await client.query(
         `INSERT INTO billing_customers (workspace_id,provider,provider_customer_id,provider_subscription_id,status,plan_code,amount_minor,currency,billing_interval,current_period_start,current_period_end,updated_at)
-         VALUES ($1,'paystack',$2,$3,'active',$4,$5,'NGN',$6,NOW(),NOW()+CASE WHEN $6='annual' THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END,NOW())
-         ON CONFLICT (workspace_id) DO UPDATE SET provider='paystack',provider_customer_id=EXCLUDED.provider_customer_id,provider_subscription_id=COALESCE(EXCLUDED.provider_subscription_id,billing_customers.provider_subscription_id),status='active',plan_code=EXCLUDED.plan_code,amount_minor=EXCLUDED.amount_minor,currency='NGN',billing_interval=EXCLUDED.billing_interval,current_period_start=EXCLUDED.current_period_start,current_period_end=EXCLUDED.current_period_end,cancelled_at=NULL,cancel_at_period_end=FALSE,updated_at=NOW()`,
-        [payment.rows[0].workspace_id,data.customer?.customer_code || null,data.subscription?.subscription_code || null,payment.rows[0].plan_code,payment.rows[0].amount_minor,interval]);
+         VALUES ($1,'paystack',$2,$3,'active',$4,$5,$7,$6,NOW(),NOW()+CASE WHEN $6='annual' THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END,NOW())
+         ON CONFLICT (workspace_id) DO UPDATE SET provider='paystack',provider_customer_id=COALESCE(EXCLUDED.provider_customer_id,billing_customers.provider_customer_id),provider_subscription_id=COALESCE(EXCLUDED.provider_subscription_id,billing_customers.provider_subscription_id),status=CASE WHEN billing_customers.cancel_at_period_end THEN 'non_renewing' ELSE 'active' END,plan_code=EXCLUDED.plan_code,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,billing_interval=EXCLUDED.billing_interval,current_period_start=CASE WHEN billing_customers.cancel_at_period_end THEN billing_customers.current_period_start ELSE EXCLUDED.current_period_start END,current_period_end=CASE WHEN billing_customers.cancel_at_period_end THEN billing_customers.current_period_end ELSE EXCLUDED.current_period_end END,updated_at=NOW()`,
+        [payment.rows[0].workspace_id,data.customer?.customer_code || null,data.subscription?.subscription_code || null,payment.rows[0].plan_code,payment.rows[0].amount_minor,interval,payment.rows[0].currency]);
       await client.query("UPDATE workspaces SET plan='team',updated_at=NOW() WHERE id=$1",[payment.rows[0].workspace_id]);
     }
     await client.query("UPDATE billing_webhook_events SET processing_status='processed',processed_at=NOW() WHERE id=$1",[inserted.rows[0].id]);
