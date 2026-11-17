@@ -50,6 +50,8 @@ export default function RestorePreviewPage() {
   async function inspectFile(event) {
     const file = event.target.files?.[0];
     setPreview(null);
+    setBackupPayload(null);
+    setServerPreview(null);
     setError("");
     setFileName(file?.name || "");
     if (!file) return;
@@ -61,6 +63,7 @@ export default function RestorePreviewPage() {
     try {
       const parsed = JSON.parse(await file.text());
       setPreview(validateBackup(parsed));
+      setBackupPayload(parsed);
     } catch (reason) {
       setError(reason instanceof SyntaxError ? "The file is not valid JSON. It may be damaged or incomplete." : reason.message || "Could not inspect this backup.");
     } finally {
@@ -136,6 +139,9 @@ export default function RestorePreviewPage() {
             {Object.entries(serverPreview.existing_id_conflicts || {}).map(([key,count])=><div key={key} style={{padding:11,borderRadius:9,background:"#1b2420"}}><b style={{fontSize:19}}>{count}</b><div style={{fontSize:10,color:"#aab4b0",textTransform:"capitalize"}}>{key.replaceAll("_"," ")} ID conflicts</div></div>)}
           </div>
           <p style={{fontSize:12,color:serverPreview.reference_problem_count?"#f0c49e":"#a7e0b8",lineHeight:1.6,marginBottom:4}}>{serverPreview.reference_problem_count} broken or missing reference issue(s) detected.</p>
+          <p style={{fontSize:12,color:"#c9d5cd",lineHeight:1.6}}>Member matching: {serverPreview.member_mapping?.matched_by_email || 0} of {serverPreview.member_mapping?.source_members || 0} matched by email. Tasks with unrecognized assignee references: {serverPreview.tasks_with_unmapped_assignees || 0}.</p>
+          {(serverPreview.member_mapping?.unmatched_members || []).length>0 && <p style={{fontSize:11,color:"#e5c58e",lineHeight:1.6}}>Members needing manual review: {serverPreview.member_mapping.unmatched_members.join(", ")}</p>}
+          <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6}}>Future recovery scope: projects, tasks, notes and comments only. Billing history, subscription records and historical activity will not be imported.</p>
           {(serverPreview.reference_problems || []).length>0 && <ul style={{fontSize:11,color:"#d8c7ad",lineHeight:1.6,paddingLeft:18}}>{serverPreview.reference_problems.map((problem,index)=><li key={index}>{problem}</li>)}</ul>}
           <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6,marginBottom:0}}>No records were inserted, updated or deleted. {serverPreview.recommendation}</p>
         </section>}
