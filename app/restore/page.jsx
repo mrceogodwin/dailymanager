@@ -42,7 +42,7 @@ export default function RestorePreviewPage() {
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState(null);
   const [error, setError] = useState("");
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState(false);\n  const [backupPayload, setBackupPayload] = useState(null);\n  const [serverPreview, setServerPreview] = useState(null);\n  const [checking, setChecking] = useState(false);
 
   async function inspectFile(event) {
     const file = event.target.files?.[0];
@@ -65,7 +65,29 @@ export default function RestorePreviewPage() {
     }
   }
 
-  const totalRecords = useMemo(() => preview ? Object.values(preview.counts).reduce((sum, count) => sum + count, 0) : 0, [preview]);
+
+  async function checkAgainstWorkspace() {
+    if (!backupPayload || checking) return;
+    setChecking(true);
+    setError("");
+    setServerPreview(null);
+    try {
+      const response = await fetch("/api/workspace/restore/preview", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(backupPayload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not check this backup against the workspace.");
+      setServerPreview(result);
+    } catch (reason) {
+      setError(reason.message || "Could not run the conflict check.");
+    } finally {
+      setChecking(false);
+    }
+  }
+\n  const totalRecords = useMemo(() => preview ? Object.values(preview.counts).reduce((sum, count) => sum + count, 0) : 0, [preview]);
 
   return (
     <main style={{minHeight:"100vh",background:"#0b0d0e",color:"#f4f2ef",padding:"clamp(20px,5vw,56px)",fontFamily:"Arial,sans-serif"}}>
@@ -97,12 +119,23 @@ export default function RestorePreviewPage() {
             <div style={{padding:13,borderRadius:11,background:"#1b2420",border:"1px solid #34443c"}}><div style={{fontSize:22,fontWeight:800}}>{totalRecords}</div><div style={{fontSize:11,color:"#b3c1b9",marginTop:4}}>Total listed records</div></div>
             {preview.pending>0&&<div style={{padding:13,borderRadius:11,background:"#2b2417",border:"1px solid #6b5730"}}><div style={{fontSize:22,fontWeight:800,color:"#f1cf8c"}}>{preview.pending}</div><div style={{fontSize:11,color:"#d8c69e",marginTop:4}}>Pending offline changes</div></div>}
           </div>
-          <p style={{fontSize:12,lineHeight:1.65,color:"#d4ddd7",marginTop:18}}>{preview.warning}</p>
+          <p style={{fontSize:12,lineHeight:1.65,color:"#d4ddd7",marginTop:18}}>{preview.warning}</p>\n          <button type="button" onClick={checkAgainstWorkspace} disabled={checking} style={{marginTop:10,padding:"12px 15px",border:0,borderRadius:10,background:"#ffc09d",color:"#291109",fontWeight:800,cursor:checking?"wait":"pointer"}}>{checking?"Checking workspace…":"Check against my workspace"}</button>\n          <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6}}>This sends the selected backup to a private, owner-only server check. It performs read-only comparisons and makes no database changes.</p>
         </section>}
 
-        <section style={{marginTop:20,padding:18,border:"1px solid #5c4b31",borderRadius:14,background:"#211d16"}}>
-          <b style={{fontSize:13,color:"#f0d09b"}}>Recovery is not enabled yet</b>
-          <p style={{fontSize:12,color:"#c9bda7",lineHeight:1.7,marginBottom:0}}>This screen only validates and previews a file. It does not upload, import, replay offline changes, overwrite records or modify your Neon database. A later restore step must verify ownership, detect conflicts and require your confirmation before writing anything.</p>
+
+        {serverPreview && <section aria-live="polite" style={{marginTop:18,padding:20,border:"1px solid #435b4d",borderRadius:14,background:"#111a15"}}>
+          <b style={{fontSize:13,color:"#a7e0b8"}}>Read-only workspace conflict check complete</b>
+          <p style={{fontSize:12,color:"#c9d5cd",lineHeight:1.6}}>Current workspace: {serverPreview.workspace?.name || "Workspace"} · {serverPreview.total_records} backup records inspected.</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(125px,1fr))",gap:8}}>
+            {Object.entries(serverPreview.existing_id_conflicts || {}).map(([key,count])=><div key={key} style={{padding:11,borderRadius:9,background:"#1b2420"}}><b style={{fontSize:19}}>{count}</b><div style={{fontSize:10,color:"#aab4b0",textTransform:"capitalize"}}>{key.replaceAll("_"," ")} ID conflicts</div></div>)}
+          </div>
+          <p style={{fontSize:12,color:serverPreview.reference_problem_count?"#f0c49e":"#a7e0b8",lineHeight:1.6,marginBottom:4}}>{serverPreview.reference_problem_count} broken or missing reference issue(s) detected.</p>
+          {(serverPreview.reference_problems || []).length>0 && <ul style={{fontSize:11,color:"#d8c7ad",lineHeight:1.6,paddingLeft:18}}>{serverPreview.reference_problems.map((problem,index)=><li key={index}>{problem}</li>)}</ul>}
+          <p style={{fontSize:11,color:"#aab4b0",lineHeight:1.6,marginBottom:0}}>No records were inserted, updated or deleted. {serverPreview.recommendation}</p>
+        </section>}
+\n        <section style={{marginTop:20,padding:18,border:"1px solid #5c4b31",borderRadius:14,background:"#211d16"}}>
+          <b style={{fontSize:13,color:"#f0d09b"}}>Recovery writes are not enabled yet</b>
+          <p style={{fontSize:12,color:"#c9bda7",lineHeight:1.7,marginBottom:0}}>This screen validates a file and can compare it with your current workspace. It does not import, replay offline changes, overwrite records or modify your Neon database. A future restore operation must resolve identity mapping and references, then require your explicit confirmation before writing anything.</p>
         </section>
       </div>
     </main>
