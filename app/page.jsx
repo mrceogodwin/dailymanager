@@ -722,7 +722,8 @@ export default function Home() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      const completeness = snapshot.data.snapshot_meta?.complete;\n      setNotice(`Device backup downloaded. ${completeness === false ? "Warning: this snapshot is partial. " : ""}It includes ${pendingChanges.length} pending offline change(s).`);
+      const completeness = snapshot.data.snapshot_meta?.complete;
+      setNotice(`Device backup downloaded. ${completeness === false ? "Warning: this snapshot is partial. " : ""}It includes ${pendingChanges.length} pending offline change(s).`);
     } catch (error) {
       setNotice(error.message || "Could not create a device backup.");
     }
