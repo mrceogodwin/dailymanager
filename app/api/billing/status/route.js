@@ -23,12 +23,10 @@ export async function GET() {
     for (const row of providers.rows) {
       try {
         const config = decryptProviderPayload(row.encrypted_payload);
-        if (row.provider === "paystack" && config.secret_key && config.monthly_plan_code && config.annual_plan_code &&
-            Number.isSafeInteger(Number(config.monthly_amount)) && Number(config.monthly_amount) > 0 &&
-            Number.isSafeInteger(Number(config.annual_amount)) && Number(config.annual_amount) > 0) configured.add("paystack");
-        if (row.provider === "bachs" && config.secret_key && config.webhook_secret && config.monthly_plan_code && config.annual_plan_code &&
-            Number.isFinite(Number(config.monthly_amount)) && Number(config.monthly_amount) > 0 &&
-            Number.isFinite(Number(config.annual_amount)) && Number(config.annual_amount) > 0 && String(config.currency || "").toUpperCase() === "USD") configured.add("bachs");
+        if (row.provider === "paystack" && config.secret_key && config.monthly_plan_code &&
+            Number.isSafeInteger(Number(config.monthly_amount)) && Number(config.monthly_amount) > 0) configured.add("paystack");
+        if (row.provider === "bachs" && config.secret_key && config.webhook_secret && config.monthly_product_id &&
+            Number.isFinite(Number(config.monthly_amount)) && Number(config.monthly_amount) > 0 && String(config.currency || "").toUpperCase() === "USD") configured.add("bachs");
       } catch (error) {
         console.error("DailyManager provider status could not validate stored configuration", row.provider, error.message);
       }
