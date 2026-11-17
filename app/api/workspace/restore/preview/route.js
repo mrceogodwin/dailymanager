@@ -123,8 +123,14 @@ export async function POST(request) {
       const mappedSourceMembers = [...sourceById.values()].filter(email => email && currentByEmail.has(email));
       const unmatchedMembers = [...sourceById.values()].filter(email => !email || !currentByEmail.has(email)).map(email => email || "Unknown email").slice(0, 30);
       const referencedAssignees = new Set(collections.tasks.map(task => String(task?.assigned_to || task?.assignee_user_id || "")).filter(Boolean));
-      const sourceUserIds = new Set(sourceById.keys());
-      const unmappedAssigneeIds = [...referencedAssignees].filter(id => !sourceUserIds.has(id));
+      // An assignee is recoverable only when its source member can be mapped to
+      // an existing target-workspace member by normalized email.
+      const mappedSourceUserIds = new Set(
+        [...sourceById.entries()]
+          .filter(([sourceUserId, email]) => sourceUserId && email && currentByEmail.has(email))
+          .map(([sourceUserId]) => sourceUserId)
+      );
+      const unmappedAssigneeIds = [...referencedAssignees].filter(id => !mappedSourceUserIds.has(id));
 
       return NextResponse.json({
         ok: true,
