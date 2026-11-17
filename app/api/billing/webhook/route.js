@@ -114,8 +114,12 @@ export async function POST(request) {
       await updateMatchedSubscription("UPDATE billing_customers SET status='non_renewing',cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
     }
     if (type === "subscription.disable") {
-      const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN LOWER(COALESCE($2,''))='complete' THEN 'completed' ELSE 'cancelled' END,cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [data.status || ""]);
-      for (const row of result.rows) await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
+      const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN LOWER(COALESCE($2,''))='complete' THEN 'completed' ELSE 'cancelled' END,cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id,current_period_end", [data.status || ""]);
+      for (const row of result.rows) {
+        if (!row.current_period_end || new Date(row.current_period_end).getTime() <= Date.now()) {
+          await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
+        }
+      }
     }
     if (type === "invoice.update" && String(data.status || "").toLowerCase() === "success") {
       const periodStart = typeof data.period_start === "string" && !Number.isNaN(Date.parse(data.period_start)) ? new Date(data.period_start).toISOString() : null;
