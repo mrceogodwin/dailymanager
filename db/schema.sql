@@ -100,6 +100,28 @@ CREATE INDEX IF NOT EXISTS account_action_tokens_expiry_idx
   ON account_action_tokens (expires_at)
   WHERE consumed_at IS NULL;
 
+-- Base subscription record. Later migrations add/verify the same optional
+-- billing fields for existing installations and create the payment/event ledgers.
+CREATE TABLE IF NOT EXISTS billing_customers (
+  workspace_id UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
+  provider TEXT,
+  provider_customer_id TEXT,
+  provider_subscription_id TEXT,
+  status TEXT NOT NULL DEFAULT 'trialing'
+    CHECK (status IN ('trialing', 'active', 'past_due', 'cancelled', 'expired')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  plan_code TEXT,
+  amount_minor BIGINT,
+  currency TEXT NOT NULL DEFAULT 'NGN',
+  billing_interval TEXT,
+  current_period_start TIMESTAMPTZ,
+  current_period_end TIMESTAMPTZ,
+  cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE,
+  cancelled_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
 CREATE TABLE IF NOT EXISTS auth_rate_limits (
   key_hash CHAR(64) PRIMARY KEY,
   attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
