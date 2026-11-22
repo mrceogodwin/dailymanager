@@ -23,7 +23,7 @@ export async function POST(request) {
     );
     const subscriptionCode = subscription.rows[0]?.provider_subscription_id;
     if (!subscriptionCode) return NextResponse.json({ error: "There is no active Paystack subscription to manage yet." }, { status: 409 });
-    if (["cancelled", "completed"].includes(String(subscription.rows[0].status || "").toLowerCase())) {
+    if (["cancelled"].includes(String(subscription.rows[0].status || "").toLowerCase())) {
       return NextResponse.json({ error: "This subscription has already ended." }, { status: 409 });
     }
 
