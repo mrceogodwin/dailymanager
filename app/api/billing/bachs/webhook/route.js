@@ -175,7 +175,7 @@ export async function POST(request) {
           throw new Error("Bachs paid invoice is missing a valid subscription, amount, USD currency, or paid status.");
         }
         const result = await client.query(
-          `UPDATE billing_customers SET status=CASE WHEN cancel_at_period_end THEN 'non_renewing' ELSE 'active' END,
+          `UPDATE billing_customers SET status='active',
              amount_minor=$2,currency=$3,
              current_period_start=COALESCE($4::timestamptz,current_period_start),
              current_period_end=COALESCE($5::timestamptz,current_period_end),
