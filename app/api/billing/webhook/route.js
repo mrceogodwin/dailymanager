@@ -86,7 +86,7 @@ export async function POST(request) {
       await client.query(
         `INSERT INTO billing_customers (workspace_id,provider,provider_customer_id,provider_subscription_id,status,plan_code,amount_minor,currency,billing_interval,current_period_start,current_period_end,updated_at)
          VALUES ($1,'paystack',$2,$3,'active',$4,$5,$7,$6,NOW(),NOW()+CASE WHEN $6='annual' THEN INTERVAL '1 year' ELSE INTERVAL '1 month' END,NOW())
-         ON CONFLICT (workspace_id) DO UPDATE SET provider='paystack',provider_customer_id=COALESCE(EXCLUDED.provider_customer_id,billing_customers.provider_customer_id),provider_subscription_id=COALESCE(EXCLUDED.provider_subscription_id,billing_customers.provider_subscription_id),status=CASE WHEN billing_customers.cancel_at_period_end THEN 'non_renewing' ELSE 'active' END,plan_code=EXCLUDED.plan_code,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,billing_interval=EXCLUDED.billing_interval,current_period_start=CASE WHEN billing_customers.cancel_at_period_end THEN billing_customers.current_period_start ELSE EXCLUDED.current_period_start END,current_period_end=CASE WHEN billing_customers.cancel_at_period_end THEN billing_customers.current_period_end ELSE EXCLUDED.current_period_end END,updated_at=NOW()`,
+         ON CONFLICT (workspace_id) DO UPDATE SET provider='paystack',provider_customer_id=COALESCE(EXCLUDED.provider_customer_id,billing_customers.provider_customer_id),provider_subscription_id=COALESCE(EXCLUDED.provider_subscription_id,billing_customers.provider_subscription_id),status='active',plan_code=EXCLUDED.plan_code,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,billing_interval=EXCLUDED.billing_interval,current_period_start=CASE WHEN billing_customers.cancel_at_period_end THEN billing_customers.current_period_start ELSE EXCLUDED.current_period_start END,current_period_end=CASE WHEN billing_customers.cancel_at_period_end THEN billing_customers.current_period_end ELSE EXCLUDED.current_period_end END,updated_at=NOW()`,
         [payment.rows[0].workspace_id,data.customer?.customer_code || null,data.subscription?.subscription_code || null,payment.rows[0].plan_code,payment.rows[0].amount_minor,interval,payment.rows[0].currency]);
       await client.query("UPDATE workspaces SET plan='team',updated_at=NOW() WHERE id=$1",[payment.rows[0].workspace_id]);
     }
@@ -111,10 +111,10 @@ export async function POST(request) {
       await updateMatchedSubscription("UPDATE billing_customers SET status='past_due',updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
     }
     if (type === "subscription.not_renew") {
-      await updateMatchedSubscription("UPDATE billing_customers SET status='non_renewing',cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
+      await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN status='past_due' THEN 'past_due' ELSE 'active' END,cancel_at_period_end=TRUE,updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/");
     }
     if (type === "subscription.disable") {
-      const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN LOWER(COALESCE($2,''))='complete' THEN 'completed' ELSE 'cancelled' END,cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id,current_period_end", [data.status || ""]);
+      const result = await updateMatchedSubscription("UPDATE billing_customers SET status='cancelled',cancel_at_period_end=FALSE,cancelled_at=NOW(),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id,current_period_end", [data.status || ""]);
       for (const row of result.rows) {
         if (!row.current_period_end || new Date(row.current_period_end).getTime() <= Date.now()) {
           await client.query("UPDATE workspaces SET plan='free',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
@@ -124,7 +124,7 @@ export async function POST(request) {
     if (type === "invoice.update" && String(data.status || "").toLowerCase() === "success") {
       const periodStart = typeof data.period_start === "string" && !Number.isNaN(Date.parse(data.period_start)) ? new Date(data.period_start).toISOString() : null;
       const periodEnd = typeof data.period_end === "string" && !Number.isNaN(Date.parse(data.period_end)) ? new Date(data.period_end).toISOString() : null;
-      const result = await updateMatchedSubscription("UPDATE billing_customers SET status=CASE WHEN cancel_at_period_end THEN 'non_renewing' ELSE 'active' END,current_period_start=COALESCE($2::timestamptz,current_period_start),current_period_end=COALESCE($3::timestamptz,current_period_end),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [periodStart, periodEnd]);
+      const result = await updateMatchedSubscription("UPDATE billing_customers SET status='active',current_period_start=COALESCE($2::timestamptz,current_period_start),current_period_end=COALESCE($3::timestamptz,current_period_end),updated_at=NOW() WHERE provider='paystack' AND /*IDENTITY*/ RETURNING workspace_id", [periodStart, periodEnd]);
       for (const row of result.rows) await client.query("UPDATE workspaces SET plan='team',updated_at=NOW() WHERE id=$1", [row.workspace_id]);
     }
     await client.query("COMMIT");
