@@ -1,25 +1,25 @@
 # DailyManager Workspace Billing Architecture
 
-Status: approved product direction; implementation plan only until Paystack credentials and pricing are configured.
+Status: billing foundation is implemented on the development branch. Live billing remains blocked until provider accounts, approved pricing, sandbox tests, and deployment checks are complete.
 
 ## Product decisions
 
 - Billing owner: the workspace owner. A subscription belongs to a workspace, not an individual seat.
 - Trial: every newly created workspace receives one 7-day trial.
-- Payment provider: Paystack.
+- Payment providers: Paystack is the primary NGN subscription provider; Bachs is an optional USD recurring-card provider.
 - Application stack: Next.js App Router on Vercel, PostgreSQL on Neon, using the existing `pg` database layer.
 - Existing workspaces and user data must be preserved. No Supabase migration.
-- Pricing, plan names, limits, and currency/amounts remain configuration decisions; do not hard-code unapproved prices.
+- Pricing, plan names, limits, and amounts remain configuration decisions; do not hard-code unapproved prices.
 - A workspace can continue using the free tier after its trial or paid period, subject to clearly defined free-tier limits. Do not delete or make existing workspace data inaccessible because of billing.
 
 ## Current repository findings
 
-- The application already has `workspaces.plan` and `workspaces.trial_ends_at` columns in its baseline schema.
-- Workspace context and the signed-in workspace response already read those fields.
-- Registration creates a workspace, but does not currently set a seven-day trial.
-- Workspace creation in the workspace API also needs the same trial initialization.
-- The dashboard currently has a placeholder upgrade action that says billing is not connected.
-- README explicitly identifies subscription checkout, webhook verification, and billing administration as unfinished.
+- Owner-only Paystack checkout, server-side verification, webhook signature validation, payment records, billing status, and encrypted Super Admin provider configuration exist.
+- Bachs hosted recurring checkout and signed webhook verification exist. Checkout references are stored before the customer is redirected.
+- The Bachs webhook handles the initial `collection.succeeded` event and now includes handlers for subscription-created/updated/deleted and paid/failed invoice events. These lifecycle handlers still require signed sandbox event tests and reconciliation checks; customer-portal management remains unfinished.
+- Bachs recurring subscriptions are USD-only according to its current subscription API documentation. NGN cards and bank transfers can be used for one-time payments; do not enable NGN recurring billing unless Bachs confirms the capability for this merchant account.
+- The current Bachs return page is informational. A browser redirect never activates a subscription; a verified signed webhook is authoritative.
+- The latest Paystack scheduled-cancellation correction is in PR #1 and has passed GitHub CI; it has not been merged into `main`.
 - The existing project uses Next.js 14, React 18, `pg`, and Neon/PostgreSQL. Keep this stack; do not add a second ORM solely for billing.
 
 ## Data model

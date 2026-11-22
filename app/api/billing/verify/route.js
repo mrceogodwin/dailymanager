@@ -39,7 +39,13 @@ export async function POST(request) {
       return NextResponse.json({error:"Paystack could not confirm this payment."},{status:402});
     }
     await client.query("BEGIN");
-    const interval=payment.rows[0].plan_code?.includes("annual") ? "annual" : (verified.plan_object?.interval==="annually"?"annual":"monthly");
+    const annualPlanCode = config.annual_plan_code;
+    const monthlyPlanCode = config.monthly_plan_code;
+    const interval = payment.rows[0].plan_code === annualPlanCode ? "annual"
+      : payment.rows[0].plan_code === monthlyPlanCode ? "monthly"
+      : verified.plan_object?.interval === "annually" ? "annual"
+      : verified.plan_object?.interval === "monthly" ? "monthly" : null;
+    if (!interval) throw new Error("The verified Paystack plan could not be matched to a configured billing interval.");
     await client.query("UPDATE billing_payments SET status='success',provider_transaction_id=$2,paid_at=COALESCE($3,NOW()),raw_response=$4::jsonb,updated_at=NOW() WHERE id=$1",
       [payment.rows[0].id,String(verified.id),verified.paid_at || null,JSON.stringify({channel:verified.channel || null,gateway_response:verified.gateway_response || null})]);
     await client.query(

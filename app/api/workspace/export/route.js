@@ -16,6 +16,8 @@ export async function GET() {
       return NextResponse.json({ error: "Only the workspace owner can export all workspace data." }, { status: 403 });
     }
     const workspaceId = workspace.id;
+    const workspaceRecord = await query("SELECT id, name, owner_user_id, plan, trial_started_at, trial_ends_at, created_at, updated_at FROM workspaces WHERE id = $1", [workspaceId]);
+    if (!workspaceRecord.rowCount) return NextResponse.json({ error: "Workspace not found." }, { status: 404 });
     const [members, projects, tasks, notes, comments, activity, payments, subscription] = await Promise.all([
       query("SELECT m.user_id, u.name, u.email, m.role, m.created_at FROM workspace_members m JOIN app_users u ON u.id = m.user_id WHERE m.workspace_id = $1 ORDER BY m.created_at", [workspaceId]),
       query("SELECT id, name, description, status, color, created_by, created_at, updated_at FROM projects WHERE workspace_id = $1 ORDER BY created_at", [workspaceId]),
@@ -24,14 +26,14 @@ export async function GET() {
       query("SELECT id, task_id, user_id, body, created_at, updated_at FROM task_comments WHERE workspace_id = $1 ORDER BY created_at", [workspaceId]),
       query("SELECT id, actor_id, actor_name, action, entity_type, entity_id, summary, created_at FROM workspace_activity WHERE workspace_id = $1 ORDER BY created_at", [workspaceId]),
       query("SELECT provider_reference, provider_transaction_id, amount_minor, currency, status, plan_code, paid_at, created_at FROM billing_payments WHERE workspace_id = $1 ORDER BY created_at", [workspaceId]),
-      query("SELECT provider, provider_customer_id, provider_subscription_id, status, plan_code, amount_minor, currency, billing_interval, current_period_start, current_period_end, cancel_at_period_end, cancelled_at, created_at, updated_at FROM billing_customers WHERE workspace_id = $1", [workspaceId]),
+      query("SELECT provider, status, plan_code, amount_minor, currency, billing_interval, current_period_start, current_period_end, cancel_at_period_end, cancelled_at, created_at, updated_at FROM billing_customers WHERE workspace_id = $1", [workspaceId]),
     ]);
     const exportedAt = new Date().toISOString();
     const payload = {
       format: "DailyManager workspace export",
       version: 1,
       exported_at: exportedAt,
-      workspace,
+      workspace: workspaceRecord.rows[0],
       members: members.rows,
       projects: projects.rows,
       tasks: tasks.rows,
@@ -47,7 +49,9 @@ export async function GET() {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "private, no-store",
+        "Cache-Control": "private, no-store, max-age=0",
+        "Pragma": "no-cache",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error) {

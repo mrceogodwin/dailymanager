@@ -49,13 +49,13 @@ export default function SuperAdminPage() {
   const keys = provider === "paystack"
     ? [
       ["secret_key","Secret key","password"],["webhook_secret","Webhook signing secret (optional if same as secret key)","password"],
-      ["public_key","Public key (optional)","text"],["monthly_plan_code","Monthly plan code","text"],["annual_plan_code","Annual plan code","text"],
-      ["monthly_amount","Monthly amount (kobo)","text"],["annual_amount","Annual amount (kobo)","text"],["currency","Currency (NGN only)","text"]
+      ["public_key","Public key (optional)","text"],["monthly_plan_code","Monthly plan code","text"],
+      ["monthly_amount","Monthly amount (kobo)","text"],["currency","Currency (NGN only)","text"]
     ]
     : [
       ["secret_key","Bachs API secret key","password"],["webhook_secret","Bachs webhook signing secret","password"],
-      ["monthly_product_id","Monthly recurring product ID","text"],["annual_product_id","Annual recurring product ID","text"],
-      ["monthly_amount","Monthly amount (USD)","text"],["annual_amount","Annual amount (USD)","text"],["currency","Subscription currency (USD currently)","text"]
+      ["monthly_product_id","Monthly recurring product ID","text"],
+      ["monthly_amount","Monthly amount (USD)","text"],["currency","Subscription currency (USD currently)","text"]
     ];
 
   const status = saved[mode] || {};
@@ -96,7 +96,7 @@ export default function SuperAdminPage() {
           <span>API key: {status.configured ? "Saved" : "Not configured"}</span>
           <span>Webhook secret: {status.webhook_configured ? "Saved" : "Not configured"}</span>
           <span>Monthly product/plan: {status.monthly_product_configured ? "Saved" : "Missing"}</span>
-          <span>Annual product/plan: {status.annual_product_configured ? "Saved" : "Missing"}</span>
+          
         </div>
         <form onSubmit={save}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: "0 14px" }}>
