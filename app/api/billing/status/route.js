@@ -33,7 +33,7 @@ export async function GET() {
     }
     return NextResponse.json({
       workspace:{id:workspace.id,name:workspace.name,plan:workspace.plan,trial_started_at:workspace.trial_started_at || null,trial_ends_at:workspace.trial_ends_at},
-      subscription:customer.rows[0] ? { ...customer.rows[0], can_manage_subscription: Boolean(customer.rows[0].provider_subscription_id) && !["cancelled","completed"].includes(String(customer.rows[0].status || "").toLowerCase()), provider_subscription_id: undefined } : null,
+      subscription:customer.rows[0] ? { ...customer.rows[0], can_manage_subscription: Boolean(customer.rows[0].provider_subscription_id) && !["cancelled"].includes(String(customer.rows[0].status || "").toLowerCase()), provider_subscription_id: undefined } : null,
       payments:payments.rows,
       checkout_configured:{paystack:configured.has("paystack"),bachs:configured.has("bachs")}
     });
